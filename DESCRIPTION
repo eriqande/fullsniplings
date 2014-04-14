@@ -12,11 +12,13 @@ Description: A package to infer full-sibling relationships from genetic data.
     taken here came to me when I was working on sibling inference issues.  It
     became clear that being able to compute the posterior predictive
     distribution of genotypes conditional on observed sibling groups would be a
-    powerful way forward in the sibling inference problem. I will eventually generalize
-    that to more general pedigree inference, but for now just want to implement
-    the easy full-sibling case as a prototypical exercise.
+    powerful way forward in the sibling inference problem. I will eventually
+    generalize that to more general pedigree inference, but for now just want
+    to implement the easy full-sibling case as a prototypical exercise.
 License: Public Domain.  See TERMS.md
 LazyData: true
 Roxygen: list(wrap = FALSE)
 Suggests:
-    testthat
+    testthat,
+    knitr
+VignetteBuilder: knitr
