@@ -45,3 +45,10 @@ colnames(dat) <- make.unique(paste("Locus", rep(1:5, each=2), sep=""))
 rownames(dat) <- paste("Ind", 1:num.inds, sep="")
 fs_dev_test_data$plain_snp_data <-  dat
 ```
+
+
+## Save it all into a data object at the end
+Though I actually have this commented out:
+```{r}
+# save(fs_dev_test_data, file="data/fs_dev_test_data.rda")
+```

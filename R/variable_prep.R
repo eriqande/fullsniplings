@@ -78,3 +78,73 @@ count_genos <- function(S) {
   dimnames(y) <- dimnames(S)[1:2]
   y
 }
+
+
+#' counts alleles from a geno_counts matrix
+#' 
+#' @param x the geno counts matrix
+#' @param proportion  if false it returns the counts. if true the proportions (summing to one)
+#' @param smidge small amount to add to count of each allele (could be useful if there are zero counts on some alleles)
+#' @return A matrix with 2 rows (corresponding to alleles 0 and 1) and L columns.
+#' @export
+alle_freqs <- function(x, proportion=T, smidge=0.5) {
+  y <- rbind(colSums(x * c(2, 1, 0) , na.rm=T), colSums(x * c(0, 1, 2), na.rm=T) )
+  dimnames(y)[[1]] <- 0:1
+  names(dimnames(y)) <- c("Alleles", "Loci")
+  if(proportion==TRUE) {
+    return((y+smidge) / rbind(colSums(y+smidge), colSums(y+smidge)))
+  }
+  y
+}
+
+
+
+#' makes L 3x3 tables of genotype likelihoods
+#' 
+#' @param L the desired number of loci
+#' @param mu vector of per-gene-copy genotyping error rates, one per locus.  Will recycle (or be truncated) to be of length L.
+#' @export
+lik_array_from_simple_geno_err <- function(L, mu) {
+  mu <- rep(mu, length.out=L)  # recycle as need be
+  y <- matrix(sapply(mu, function(u) {
+    c(
+      (1-u)^2,  u*(1-u),  u^2,
+      2*u*(1-u), u^2 + (1-u)^2, 2*u*(1-u),
+      u^2,  u*(1-u),  (1-u)^2
+      )
+  }), nrow=3)
+  
+  dimnames(y) <- list(
+      TrueGeno=1:3,
+      ObsGeno=paste("mu_", rep(1:L, each=3), ".", 0:2, sep="")
+    )
+  y
+}
+
+
+#' given genotyping error and observed genotypes, return an array of likelihoods for all the individuals
+#' 
+#' @param SI  a 3 x L x N array of snp genotype indicators, of the sort that would come out of 
+#'  \code{\link{genos_to_indicators}}.
+#' @param mu array of per-gene-copy genotyping error rates.  Gets recycled as need be.
+#' @export
+get_indiv_geno_lik <- function(SI, mu) {
+  if(length(dim(SI)) != 3) stop("argument SI must be a three-dimensional array.")
+  L <- dim(SI)[2]
+  N <- dim(SI)[3]
+  u.mat <- lik_array_from_simple_geno_err(L, mu)
+  
+  # now we want to pick columns out of u.mat according to the observed genotype
+  # of individuals.  We can do this with the indicators in SI, interpreting them as
+  # logical vectors. However, every NA will pick out a whole column of u.mat, and we only
+  # want to pick out 1 of those, so we turn the top and bottom NA into a 0:
+  SI[1,,][is.na(SI[1,,])] <- 0
+  SI[3,,][is.na(SI[3,,])] <- 0
+  
+  # now we replicate u.mat N times and pick out columns of it like so:
+  ret <- matrix(rep(u.mat, N), nrow=3)[, as.logical(SI)]
+  dim(ret) <- dim(SI)
+  dimnames(ret) <- dimnames(SI)
+  ret[is.na(ret)] <- 1 # if no data observed, likelihood of true geno is constant (set to 1) 
+  ret
+}

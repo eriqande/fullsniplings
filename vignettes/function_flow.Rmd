@@ -1,0 +1,112 @@
+---
+title: "Quick overview of use/flow of functions"
+author: Eric C. Anderson
+date: April, 2014
+output: 
+  html_document:
+    toc: true
+    highlight: pygments
+  pdf_document:
+    toc: true
+    highlight: pygments
+---
+
+Note that to get this to really be a vignette, I must insert this at the top:
+```
+<!--
+%\VignetteEngine{knitr::knitr}
+%\VignetteIndexEntry{quick overview of use/flow of functions}
+-->
+```
+
+I am just writing this down while I am writing these functions, to remind me of how I am going to use them.
+
+## Alleles and allele frequencies
+Here are the standard steps that I would take in prepping up all the variables.  You will of
+course want to prepare by loading the library:
+```{r}
+library(fullsniplings)
+```
+**First**, turn a data frame of SNP alleles into values of 0, 1, 2, or NA for each individual: 
+```{r}
+snp_genos <- get_snp_genos(fs_dev_test_data$plain_snp_data)
+snp_genos
+```
+
+**Second**, turn those 0, 1, 2, or NA genotypes into indicator vectors.  So a 0 would be (1,0,0) and a 2 would be (0,0,1)
+```{r}
+snp_indics <- genos_to_indicators(g = snp_genos$mat)
+snp_indics[, , 1:3]
+```
+Note that this creates a 3-D array.
+
+**Third**, count up the number of observed genotypes:
+```{r}
+geno_counts <- count_genos(snp_indics)
+geno_counts
+```
+
+**Fourth**, compute the allele freqs
+```{r}
+afreqs <- alle_freqs(geno_counts)
+afreqs
+```
+
+## Genotype likelihoods for each individual
+Getting these likelihoods is pretty straightforward.  They **don't** depend on the allele frequencies.  These are just the
+probability of an individuals observed genotype given the (typically unknown) true genotype.  This, of course, depends on the
+genotyping error rate of each locus.
+
+**First**, we make a big 3 x 3 x L array of the probs of observing 0, 1, or 2, (the columns) given the true genotype is 0, 1, or 2 (in the rows).  Under our simple independent mutation model that we are using, where each gene copy has a chance $\mu$ of being detected incorrectly, our likelihood table for $P(\text{Observed geno}=y~|~\text{True geno}=x)$ for a single locus looks like this:
+\[
+\begin{array}{lr|ccc}
+& & & y & \\\\
+&                             &      0           &          1           &     2         \\\\ 
+\hline
+&            0                &   (1-\mu)^2      &     2\mu(1-\mu)      &   \mu^2       \\\\
+x~~&        1                &   \mu(1-\mu)     &    \mu^2 + (1-\mu)^2 &   \mu(1-\mu)  \\\\
+&            2                &   \mu^2          &     2\mu(1-\mu)      &   (1-\mu)^2  \\\\
+\end{array}
+\]
+It is important to stress that this is just a super simple genotyping error model.  However, 
+*any* error model that you might dream up (so long as it is independent between loci) 
+can be parameterized by a matrix like this.  So, if you want a different genotyping error
+model, it can be specified like this.  Note that we can probably estimate the elements of
+this matrix with very large samples.
+
+We compute this in the function `lik_array_from_simple_geno_err()`, and though we think of the
+result as a 3 x 3 x L array, we actually return it as a 3 x 3*L matrix as that will facilitate
+matters later.
+
+Here is an example of what it looks like to run it for three loci at three different
+genotyping error rates:
+```{r}
+lik_array_from_simple_geno_err(L = 3, mu = c(0.0, .005, .1))
+```
+In the output, notice that the column names are such that `mu_1.0` describes the situation in
+which one observes a genotype of 0 at a locus with genotyping error rate  `mu_1`.
+
+
+**Now**, to actually get genotype likelihoods for each of the individuals, given their
+observed genotypes, we call the function `get_indiv_geno_lik()` which calls the function 
+`lik_array_from_simple_geno_err`.  There is some funky stuff to deal with NAs here, and 
+a little bit of weird vectorization, but it seems to be working nicely.  As long as it doesn't
+gobble up too much memory with really large data sets.
+
+Here it is in action:
+```{r}
+geno_liks <- get_indiv_geno_lik(
+                      SI = snp_indics, 
+                      mu = c(0.0, 0.001, 0.005, 0.01, 0.1)
+                      )
+```
+Let's look at the result for the first four individuals:
+```{r}
+geno_liks[,,1:4]
+```
+And compare that to their observed genotypes to see how it all works together.
+```{r}
+snp_genos$mat[,1:4]
+```
+Notice in particular, that the likelihood for the true genotype of an individual at a locus
+for which data is missing at that individual is constant (1).
