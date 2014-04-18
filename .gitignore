@@ -6,3 +6,7 @@
 *.html
 vignettes/*.md
 vignettes/*.pdf
+*.o
+src/RcppExports.cpp
+R/RcppExports.R
+src/*.so

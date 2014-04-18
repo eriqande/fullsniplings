@@ -18,7 +18,8 @@
 #' It really is just in development at the moment
 #' 
 #'
-#' @import Rcpp
 #' @docType package
 #' @name fullsniplings
+#' @useDynLib fullsniplings
+#' @importFrom Rcpp sourceCpp
 NULL

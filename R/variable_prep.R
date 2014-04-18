@@ -148,3 +148,35 @@ get_indiv_geno_lik <- function(SI, mu) {
   ret[is.na(ret)] <- 1 # if no data observed, likelihood of true geno is constant (set to 1) 
   ret
 }
+
+
+
+#' returns a matrix of the 27 transmission probs between a pair of parents and an offspring
+#' 
+#' There are 9 possible genotype configurations among the parents and 3 in the kid, this
+#' function just enumerates those and puts the probabilities into a 3 x 3 x 3 matrix and
+#' returns it. It initializes all values to 0, then only modifies the non-zero ones.
+#' @export
+trans_probs <- function() {
+  ret <- rep(0.0,27)
+  dim(ret) <- c(3,3,3)
+  dimnames(ret) <- list(ParentOne = paste(0:2), ParentTwo = paste(0:2), Kid = paste(0:2))
+  
+  ret["0", "0", "0"] = 1.0
+  ret["0", "1", "0"] = 0.5
+  ret["0", "1", "1"] = 0.5
+  ret["0", "2", "1"] = 1.0
+  ret["1", "0", "0"] = 0.5
+  ret["1", "0", "1"] = 0.5
+  ret["1", "1", "0"] = 0.25
+  ret["1", "1", "1"] = 0.5
+  ret["1", "1", "2"] = 0.25
+  ret["1", "2", "1"] = 0.5
+  ret["1", "2", "2"] = 0.5
+  ret["2", "0", "1"] = 1.0
+  ret["2", "1", "1"] = 0.5
+  ret["2", "1", "2"] = 0.5
+  ret["2", "2", "2"] = 1.0
+  
+  ret
+}

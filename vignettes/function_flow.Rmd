@@ -27,37 +27,39 @@ course want to prepare by loading the library:
 ```{r}
 library(fullsniplings)
 ```
-**First**, turn a data frame of SNP alleles into values of 0, 1, 2, or NA for each individual: 
+### First, turn a data frame of SNP alleles into values of 0, 1, 2, or NA for each individual: 
 ```{r}
 snp_genos <- get_snp_genos(fs_dev_test_data$plain_snp_data)
 snp_genos
 ```
 
-**Second**, turn those 0, 1, 2, or NA genotypes into indicator vectors.  So a 0 would be (1,0,0) and a 2 would be (0,0,1)
+### Second, turn those 0, 1, 2, or NA genotypes into indicator vectors.  
+So a 0 would be (1,0,0), a 1 would be (0,1,0), a 2 would be (0,0,1), and an NA would be (NA, NA, NA)
 ```{r}
 snp_indics <- genos_to_indicators(g = snp_genos$mat)
 snp_indics[, , 1:3]
 ```
 Note that this creates a 3-D array.
 
-**Third**, count up the number of observed genotypes:
+### Third, count up the number of observed genotypes:
 ```{r}
 geno_counts <- count_genos(snp_indics)
 geno_counts
 ```
 
-**Fourth**, compute the allele freqs
+### Fourth, compute the allele freqs
 ```{r}
 afreqs <- alle_freqs(geno_counts)
 afreqs
 ```
 
-## Genotype likelihoods for each individual
+## Genotype likelihoods for each individual and "marriages"
 Getting these likelihoods is pretty straightforward.  They **don't** depend on the allele frequencies.  These are just the
 probability of an individuals observed genotype given the (typically unknown) true genotype.  This, of course, depends on the
 genotyping error rate of each locus.
 
-**First**, we make a big 3 x 3 x L array of the probs of observing 0, 1, or 2, (the columns) given the true genotype is 0, 1, or 2 (in the rows).  Under our simple independent mutation model that we are using, where each gene copy has a chance $\mu$ of being detected incorrectly, our likelihood table for $P(\text{Observed geno}=y~|~\text{True geno}=x)$ for a single locus looks like this:
+### First, compute probs under genotyping error
+We make a big 3 x 3 x L array of the probs of observing 0, 1, or 2, (the columns) given the true genotype is 0, 1, or 2 (in the rows).  Under our simple independent mutation model that we are using, where each gene copy has a chance $\mu$ of being detected incorrectly, our likelihood table for $P(\text{Observed geno}=y~|~\text{True geno}=x)$ for a single locus looks like this:
 \[
 \begin{array}{lr|ccc}
 & & & y & \\\\
@@ -87,7 +89,8 @@ In the output, notice that the column names are such that `mu_1.0` describes the
 which one observes a genotype of 0 at a locus with genotyping error rate  `mu_1`.
 
 
-**Now**, to actually get genotype likelihoods for each of the individuals, given their
+### Next, get the genotype likelihoods for all the individuals
+To actually get genotype likelihoods for each of the individuals, given their
 observed genotypes, we call the function `get_indiv_geno_lik()` which calls the function 
 `lik_array_from_simple_geno_err`.  There is some funky stuff to deal with NAs here, and 
 a little bit of weird vectorization, but it seems to be working nicely.  As long as it doesn't
@@ -110,3 +113,38 @@ snp_genos$mat[,1:4]
 ```
 Notice in particular, that the likelihood for the true genotype of an individual at a locus
 for which data is missing at that individual is constant (1).
+
+### Next, we also compute and store the likelihoods of each individual's pair of parents (i.e. for the "marriage" that produced the individual)
+In the immediately preceding section we did a calculation that yielded the likelihood that an individual's
+true genotype is 0, 1, or 2, given the observed genotype of that individual.  Here are ambitions are one generation greater.
+We want to compute the likelihood of the genotypes of the two parents of each individual given the individual's observed
+genotype.  There are 9 possible genotypes of the pair (Paren One can be 0, 1, or 2, and so can parent Two.).  These could be 
+condensed to 6 equivalence classes, but that is not worth it here, I feel.  So we won't.  Here are some example probabilities
+that we are dealing with:
+
+Parent One  |  Parent Two   |   Kid       |  Prob
+----------- | ------------  |  --------   |  ------
+0           | 0             | 0           |  1
+0           | 0             | 1           |  0
+0           | 0             | 2           |  0
+0           | 1             | 0           |  $\frac{1}{2}$
+0           | 1             | 1           |  $\frac{1}{2}$
+1           | 1             | 0           |  $\frac{1}{4}$
+
+and so forth.
+
+#### Create an array that holds those probabilities
+We only need to make a single 3x3x3 array for these.  Rows are Parent One, columns are Parent Two,
+and the next dimension is for Kids.
+We just have a simple function that fills such an array. Check out its output:
+```{r}
+trans_probs()
+```
+
+#### Then use the above probabilities to compute the likelihoods of the marriages that produced each offspring, given the offspring observed genotype
+This is something that can probably be done efficiently in R with some wrangling, but guessing that it will be easier in compiled
+code with some for loops, I did it with Rcpp.
+
+```{r}
+tprobs <- trans_probs()
+```
