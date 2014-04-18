@@ -146,5 +146,10 @@ This is something that can probably be done efficiently in R with some wrangling
 code with some for loops, I did it with Rcpp.
 
 ```{r}
-tprobs <- trans_probs()
+marriage_liks <- get_marriage_likelihoods(geno_liks, trans_probs())
+dimnames(marriage_liks) <- c(list(Par1=0:2, Par2=0:2), dimnames(geno_liks)[2:3])
+marriage_liks[,, 1:3, 1:2]  # look at the first three loci and the first two indivs
 ```
+Notice that I have not figured out how to propagate the dimnames very well in Rcpp, so I just do 
+it there in R. Probably will leave it that way, too.
+
