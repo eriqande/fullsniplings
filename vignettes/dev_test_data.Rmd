@@ -47,6 +47,21 @@ fs_dev_test_data$plain_snp_data <-  dat
 ```
 
 
+## Big Mykiss SNP-data set
+I want to add in the SNP data that I used when Hans and I were looking at the the `psiblings` method.  It is 
+a nice size, about 1400 fish at 95 SNPs or so.  We will save the genotype data and the pedigree.  This is a little
+ugly now, and not portable, because the original is on my hard drive.  I must clean this up before distribution,
+but I wanted a record of it for now.
+```{r}
+# get the data
+load("/Users/eriq/Documents/work/prj/HansSib/PBT_Data/WSH/data/wsh_data_for_sibship_analysis.Rda")
+fs_dev_test_data$mykiss_pedigree <- ped.no.parents
+fs_dev_test_data$mykiss_genos <- genos.no.parents
+names(fs_dev_test_data$mykiss_genos) <- make.unique(paste("Loc_", rep(1:(ncol(genos.no.parents)/2), each=2), sep=""))
+```
+}
+
+
 ## Save it all into a data object at the end
 Though I actually have this commented out:
 ```{r}

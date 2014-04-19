@@ -180,3 +180,28 @@ trans_probs <- function() {
   
   ret
 }
+
+
+#' a function to prep all the variables up through the marriage likelihoods
+#' 
+#' @param DF the data frame of SNP data
+#' @param geno_error_rates  vector of genotyping error rates for each locus (recycled if necessary)
+#' @export
+prep_all_variables <- function(genos, geno_error_rates) {
+  snp_genos <- get_snp_genos(genos)
+  snp_indics <- genos_to_indicators(g = snp_genos$mat)
+  geno_counts <- count_genos(snp_indics)
+  afreqs <- alle_freqs(geno_counts)
+  geno_liks <- get_indiv_geno_lik(SI = snp_indics, mu = geno_error_rates)
+  marriage_liks <- get_marriage_likelihoods(geno_liks, trans_probs())
+  dimnames(marriage_liks) <- c(list(Par1=0:2, Par2=0:2), dimnames(geno_liks)[2:3])
+  
+  list(
+    snp_genos = snp_genos,
+    snp_indics = snp_indics,
+    geno_counts = geno_counts,
+    afreqs = afreqs,
+    geno_liks = geno_liks,
+    marriage_liks = marriage_liks
+    )
+}

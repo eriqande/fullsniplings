@@ -6,6 +6,7 @@
 *.html
 vignettes/*.md
 vignettes/*.pdf
+vignettes/cache
 *.o
 src/RcppExports.cpp
 R/RcppExports.R

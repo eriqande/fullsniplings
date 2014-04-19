@@ -8,6 +8,7 @@ output:
     highlight: pygments
   pdf_document:
     toc: true
+    toc_depth: 3
     highlight: pygments
 ---
 
@@ -144,7 +145,6 @@ trans_probs()
 #### Then use the above probabilities to compute the likelihoods of the marriages that produced each offspring, given the offspring observed genotype
 This is something that can probably be done efficiently in R with some wrangling, but guessing that it will be easier in compiled
 code with some for loops, I did it with Rcpp.
-
 ```{r}
 marriage_liks <- get_marriage_likelihoods(geno_liks, trans_probs())
 dimnames(marriage_liks) <- c(list(Par1=0:2, Par2=0:2), dimnames(geno_liks)[2:3])
@@ -153,3 +153,19 @@ marriage_liks[,, 1:3, 1:2]  # look at the first three loci and the first two ind
 Notice that I have not figured out how to propagate the dimnames very well in Rcpp, so I just do 
 it there in R. Probably will leave it that way, too.
 
+## All the Above stuff wrapped up into one function
+We can take care of all of the above in one function and send the result back in a list.  That function is
+`prep_all_variables`.  Here we prep all the variables for the mykiss data set that has `r dim(fs_dev_test_data$mykiss_genos)[1]` individuals typed at `r dim(fs_dev_test_data$mykiss_genos)[2]/2` SNPs.
+```{r}
+system.time(mykiss <- prep_all_variables(fs_dev_test_data$mykiss_genos, 0.005))
+```
+So, that happens pretty quickly (and it is about two times slower running under `knitr` while making this document).  And we can also see what the memory requirements are here:
+```{r}
+lapply(mykiss, function(x) format(object.size(x), units="auto"))
+```
+We see that this isn't looking too bad.  We could toss some of those components, but then there is going to be
+other overhead.  The total use is:
+```{r}
+format(object.size(mykiss), units="auto")
+```
+So, let's round that to 20 Mb for 1446 fish.  Thus, 200,000 fish will require about `r 20 * (200000/1446) / 1000` Gb, so that seems to be well within the "reasonable zone."
