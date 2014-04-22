@@ -4,11 +4,11 @@ using namespace Rcpp;
 
 
 
-//' Compute the likelihood of the genotypes of a marriage given the genotype of one of its offspring
+//' Compute the likelihood of the genotypes of a marriage given the genotype of \emph{just one} of its offspring
 //' 
 //' It is advantageous to precompute and store some quantities for pedigree analysis with SNPs.
-//' One of those quantities is the likelihood of a two parents' genotypes given the genotype 
-//' of one of the offspring.  This is convenient because the likelihood of the two parents' 
+//' One of those quantities is the likelihood of the genotypes of the two parents that produced a child,
+//' conditional only on that one child's genotype. This is convenient because the likelihood of the two parents' 
 //' genotypes given \emph{all} of their offspring will be the product of the single-offspring
 //' likelihoods.  When genotyping error is present, that has to be thrown into the mix as well.
 //' However, here we assume that the individual offspring genotype likelihoods have already been
@@ -19,15 +19,19 @@ using namespace Rcpp;
 //' @param transmission_probs a 3 x 3 x 3 matrix of probs of kid genotypes given parent genotypes.
 //' Such an array is returned by \code{\link{trans_probs}}.  See the documentation thereof for a
 //' description.
+//' @return This returns a 3 x 3 x L x N array of the parent genotypes (9 states) at each of the L loci
+//' for each of the N offspring.  Although these are ostensible likelihoods of "marriages" (think of them
+//' as marriage nodes), it will be beneficial to regard these quantities of properties of the individual
+//' offspring moreso than as properties of the marriage nodes.
 //' @export
 // [[Rcpp::export]]
-NumericVector get_marriage_likelihoods(NumericVector offspring_likelihoods, NumericVector transmission_probs) {
+NumericVector per_kid_marriage_likelihoods(NumericVector offspring_likelihoods, NumericVector transmission_probs) {
   NumericVector ol_dims = offspring_likelihoods.attr("dim");
   int G = ol_dims[0],  // G is the # of genotypes.  It should always be 3, but i'll let it vary
       L = ol_dims[1],  // Number of loci
       N = ol_dims[2];  // Number of individuals 
-  NumericVector ret(G * G * L * N);
-  NumericVector rd = NumericVector::create(G, G, L, N);  // dimensions of output
+  NumericVector ret(G * G * L * N);  // initialized to 0's with lenth G*G*L*N
+  NumericVector rd = NumericVector::create(G, G, L, N);  // dimensions of output.
   ret.attr("dim") = rd;
   
 // The following error catching just crashes my machine.  Leave it out for now.
