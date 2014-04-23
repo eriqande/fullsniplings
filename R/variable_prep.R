@@ -98,6 +98,22 @@ alle_freqs <- function(x, proportion=T, smidge=0.5) {
 }
 
 
+#' creates a vector of genotypes likelihoods from the allele freqs
+#' 
+#' Given a 2 x L array of allele frequencies, this function returns
+#' a 3 x L array of genotype frequencies expected under Hardy-Weinberg
+#' proportions.
+#' @param a the 2 x L array of allele frequencies.  
+#' @return a 3 x L array of genotypes frequencies
+#' @export
+gfreqs_from_afreqs <- function(a) {
+  if(any(a>1 | a<0)) stop("Allele freqs >1 or <0 in a")
+  if(any(colSums(a)>1)) stop("Allele freqs summing to more than 1 in a")
+  
+  ret <- rbind(a[1,] * a[1,], 2 * a[1,] * a[2,], a[2,]*a[2,])
+  dimnames(ret) <- list(Genos=1:3, Loci=colnames(a))
+  ret
+}
 
 #' makes L 3x3 tables of genotype likelihoods
 #' 
@@ -121,33 +137,6 @@ lik_array_from_simple_geno_err <- function(L, mu) {
   y
 }
 
-
-#' given genotyping error and observed genotypes, return an array of likelihoods for all the individuals
-#' 
-#' @param SI  a 3 x L x N array of snp genotype indicators, of the sort that would come out of 
-#'  \code{\link{genos_to_indicators}}.
-#' @param mu array of per-gene-copy genotyping error rates.  Gets recycled as need be.
-#' @export
-get_indiv_geno_lik <- function(SI, mu) {
-  if(length(dim(SI)) != 3) stop("argument SI must be a three-dimensional array.")
-  L <- dim(SI)[2]
-  N <- dim(SI)[3]
-  u.mat <- lik_array_from_simple_geno_err(L, mu)
-  
-  # now we want to pick columns out of u.mat according to the observed genotype
-  # of individuals.  We can do this with the indicators in SI, interpreting them as
-  # logical vectors. However, every NA will pick out a whole column of u.mat, and we only
-  # want to pick out 1 of those, so we turn the top and bottom NA into a 0:
-  SI[1,,][is.na(SI[1,,])] <- 0
-  SI[3,,][is.na(SI[3,,])] <- 0
-  
-  # now we replicate u.mat N times and pick out columns of it like so:
-  ret <- matrix(rep(u.mat, N), nrow=3)[, as.logical(SI)]
-  dim(ret) <- dim(SI)
-  dimnames(ret) <- dimnames(SI)
-  ret[is.na(ret)] <- 1 # if no data observed, likelihood of true geno is constant (set to 1) 
-  ret
-}
 
 
 
@@ -193,8 +182,7 @@ prep_all_variables <- function(genos, geno_error_rates) {
   geno_counts <- count_genos(snp_indics)
   afreqs <- alle_freqs(geno_counts)
   geno_liks <- get_indiv_geno_lik(SI = snp_indics, mu = geno_error_rates)
-  marriage_liks <- get_marriage_likelihoods(geno_liks, trans_probs())
-  dimnames(marriage_liks) <- c(list(Par1=0:2, Par2=0:2), dimnames(geno_liks)[2:3])
+  pk_marriage_liks <- per_kid_marriage_likelihoods(geno_liks, trans_probs())
   
   list(
     snp_genos = snp_genos,
@@ -202,6 +190,6 @@ prep_all_variables <- function(genos, geno_error_rates) {
     geno_counts = geno_counts,
     afreqs = afreqs,
     geno_liks = geno_liks,
-    marriage_liks = marriage_liks
+    pk_marriage_liks = pk_marriage_liks
     )
 }

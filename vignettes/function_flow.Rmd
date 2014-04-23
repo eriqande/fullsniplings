@@ -26,7 +26,8 @@ I am just writing this down while I am writing these functions, to remind me of 
 Here are the standard steps that I would take in prepping up all the variables.  You will of
 course want to prepare by loading the library:
 ```{r}
-library(fullsniplings)
+#library(fullsniplings)
+library(microbenchmark)
 ```
 ### First, turn a data frame of SNP alleles into values of 0, 1, 2, or NA for each individual: 
 ```{r}
@@ -97,6 +98,16 @@ observed genotypes, we call the function `get_indiv_geno_lik()` which calls the 
 a little bit of weird vectorization, but it seems to be working nicely.  As long as it doesn't
 gobble up too much memory with really large data sets.
 
+It would be reasonable to think of the object this function returns as a
+G x L x N array where G is the number of genotypic states (with diploid SNPs
+that is going to be 3, but if we ever got into different ploidies, it would be 
+different). However, in practice, we will want to store it as a matrix with G x L
+rows and N columns.  But it is nice to be able to print it out and see it as a
+G x L x N array with all the dimnames and things on it.  So, what we do is 
+return it as an object of an S3 class called `ind_geno_lik_array` that has its matrix representation
+but also carries around attributes `igla_dimnames` and `igla_dim` which can be used
+to print it in a nice format.
+
 Here it is in action:
 ```{r}
 geno_liks <- get_indiv_geno_lik(
@@ -104,13 +115,14 @@ geno_liks <- get_indiv_geno_lik(
                       mu = c(0.0, 0.001, 0.005, 0.01, 0.1)
                       )
 ```
-Let's look at the result for the first four individuals:
+Let's print the result and see that, since we have defined a `print.ind_geno_lik_array` function
+we get a specialized printing out it:
 ```{r}
-geno_liks[,,1:4]
+geno_liks
 ```
 And compare that to their observed genotypes to see how it all works together.
 ```{r}
-snp_genos$mat[,1:4]
+snp_genos$mat[, c(1:2, c(-1,0) + ncol(snp_genos$mat))]
 ```
 Notice in particular, that the likelihood for the true genotype of an individual at a locus
 for which data is missing at that individual is constant (1).
@@ -146,20 +158,21 @@ trans_probs()
 This is something that can probably be done efficiently in R with some wrangling, but guessing that it will be easier in compiled
 code with some for loops, I did it with Rcpp.
 ```{r}
-marriage_liks <- get_marriage_likelihoods(geno_liks, trans_probs())
-dimnames(marriage_liks) <- c(list(Par1=0:2, Par2=0:2), dimnames(geno_liks)[2:3])
-marriage_liks[,, 1:3, 1:2]  # look at the first three loci and the first two indivs
+marriage_liks <- per_kid_marriage_likelihoods(geno_liks, trans_probs())
+marriage_liks  # print it out. You get the first and last two individuals and the first two loci 
 ```
 Notice that I have not figured out how to propagate the dimnames very well in Rcpp, so I just do 
 it there in R. Probably will leave it that way, too.
 
 ## All the Above stuff wrapped up into one function
 We can take care of all of the above in one function and send the result back in a list.  That function is
-`prep_all_variables`.  Here we prep all the variables for the mykiss data set that has `r dim(fs_dev_test_data$mykiss_genos)[1]` individuals typed at `r dim(fs_dev_test_data$mykiss_genos)[2]/2` SNPs.
+`prep_all_variables`.  Here we prep all the variables for the mykiss data set that has 
+`r dim(fs_dev_test_data$mykiss_genos)[1]` individuals typed at `r dim(fs_dev_test_data$mykiss_genos)[2]/2` SNPs.
 ```{r}
 system.time(mykiss <- prep_all_variables(fs_dev_test_data$mykiss_genos, 0.005))
 ```
-So, that happens pretty quickly (and it is about two times slower running under `knitr` while making this document).  And we can also see what the memory requirements are here:
+So, that happens pretty quickly (and it is about two times slower running under `knitr` while making this document).
+And we can also see what the memory requirements are here:
 ```{r}
 lapply(mykiss, function(x) format(object.size(x), units="auto"))
 ```
@@ -168,4 +181,40 @@ other overhead.  The total use is:
 ```{r}
 format(object.size(mykiss), units="auto")
 ```
-So, let's round that to 20 Mb for 1446 fish.  Thus, 200,000 fish will require about `r 20 * (200000/1446) / 1000` Gb, so that seems to be well within the "reasonable zone."
+So, let's round that to 20 Mb for 1446 fish.  Thus, 200,000 fish will require about `r 20 * (200000/1446) / 1000` Gb, 
+so that seems to be well within the "reasonable zone."
+
+## Some handy utility functions
+### Genotype frequencies from allele frequencies (and H-W equilibrium)
+Here is just a little function that returns genotype frequencies under H-W equilibrium given allele frequencies:
+```{r}
+gfreqs_from_afreqs(afreqs)
+```
+
+
+
+## Functions that will be used during the MCMC, etc.
+### multi_kid_marriage likelihoods
+If we have a list of the the (base-0) indices of all the kids belonging together in full sibling
+groups then we can compute the likelihood of the marriage nodes given all those kids. Here is what
+one of those sib lists might look like (in this case I have the names of the parents naming the list):
+```{r}
+head(fs_dev_test_data$mykiss_sib_list)
+```
+And, of course we need to have a corresponding array of individual offspring genotype likelihoods.
+With those two ingredients we have a function (in Rcpp, as it seems that will be faster) that
+returns a 3 x 3 x L x M array of multi-kid marriage likelihoods.  M is the number of 
+marriages (and is the length of the sib list.)
+```{r}
+multi_mar_lik <- multi_kid_marriage_likelihoods(fs_dev_test_data$mykiss_sib_list, mykiss$pk_marriage_liks)
+microbenchmark(multi_kid_marriage_likelihoods(fs_dev_test_data$mykiss_sib_list, mykiss$pk_marriage_liks) )
+```
+Let us see what the ouput looks like:
+```{r}
+multi_mar_lik
+```
+Aha, let us print just a part of it.  Maybe the first two marriages and the first
+3 loci:
+```{r}
+gqa_natural(multi_mar_lik)[ , , 1:3, 1:2]
+```

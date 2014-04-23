@@ -26,13 +26,24 @@ using namespace Rcpp;
 //' @export
 // [[Rcpp::export]]
 NumericVector per_kid_marriage_likelihoods(NumericVector offspring_likelihoods, NumericVector transmission_probs) {
-  NumericVector ol_dims = offspring_likelihoods.attr("dim");
+  NumericVector ol_dims = offspring_likelihoods.attr("gqa_dim");
+  List ol_dn = offspring_likelihoods.attr("gqa_dimnames");
   int G = ol_dims[0],  // G is the # of genotypes.  It should always be 3, but i'll let it vary
       L = ol_dims[1],  // Number of loci
       N = ol_dims[2];  // Number of individuals 
-  NumericVector ret(G * G * L * N);  // initialized to 0's with lenth G*G*L*N
-  NumericVector rd = NumericVector::create(G, G, L, N);  // dimensions of output.
-  ret.attr("dim") = rd;
+  NumericVector ret(G * G * L * N);  // initialized to 0's with length G*G*L*N
+  NumericVector rd = NumericVector::create(G, G, L, N);  // dimensions of output. Though we will squash it into matrix in the next line
+  ret.attr("dim") = NumericVector::create(G * G * L, N);
+  
+  // set all the attributes to make it a marriage_geno_lik_array object
+  ret.attr("gqa_dim") = rd;
+  ret.attr("gqa_dimnames") = List::create( _["Parent1_Geno"] = ol_dn[0],
+                                            _["Parent2_Geno"] = ol_dn[0],
+                                            _["Loci"]         = ol_dn[1],
+                                            _["Offspring"]    = ol_dn[2]  
+                                            );
+  ret.attr("class") = CharacterVector::create("marriage_geno_lik_array", "geno_qty_array");
+  ret.attr("gqa_description") = CharacterVector::create("parent pair likelihoods given each, single offspring");
   
 // The following error catching just crashes my machine.  Leave it out for now.
 // I don't know what is up with Rcpp on that.
@@ -69,9 +80,47 @@ NumericVector per_kid_marriage_likelihoods(NumericVector offspring_likelihoods, 
 } 
 
 
-
+//' compute the marriage node likelihoods given offspring specified in a full-sibling list
+//' 
+//' @param S a list of vectors that give the indices (base 0) of the individuals in the 
+//' full sibling groups.  
+//' @param PK per-kid marriage likelihoods.  This must be of class \code{\link{marriage_geno_lik_array}},
+//' which is just a matrix underneath with G x G x L rows and N columns.
 //' @export
 // [[Rcpp::export]]
-NumericVector timesTwo(NumericVector x, NumericVector y) {
-   return x * y * 2;
+NumericMatrix multi_kid_marriage_likelihoods(List S, NumericMatrix PK) {
+  int M = S.length();  // number of marriages we are computing for here
+    IntegerVector PD = PK.attr("gqa_dim");
+    List PKdn = PK.attr("gqa_dimnames");
+    int G1 = PD[0];
+    int G2 = PD[1];
+    int L  = PD[2];
+    int m=0, yl;
+    IntegerVector y;
+    NumericMatrix ret(G1 * G2 * L, M); // allocate memory to be returned
+    
+    
+   
+    // cycle over the elements of M
+  for(List::iterator it=S.begin(); it != S.end(); ++it)  {
+    y = as<IntegerVector>(*it);
+     yl = y.length();
+     ret( _, m) = PK( _, y[0]);   // this initializes it to accumulate a product
+     for(int yi=1; yi<yl; yi++) {
+       ret(_, m) =  ret(_, m) * PK(_, y[yi]);
+     } 
+     m++;
+    }
+   
+    // set attributes and make it of class marriage_geno_lik_array
+    ret.attr("gqa_dim") = NumericVector::create(G1, G2, L, M);
+    ret.attr("class") = CharacterVector::create("marriage_geno_lik_array", "geno_qty_array");
+    ret.attr("gqa_description") = CharacterVector::create("parent pair likelihoods given all the offspring currently allocated to them");
+    ret.attr("gqa_dimnames") = List::create(_["Parent1_Geno"] = PKdn[0],
+                                            _["Parent2_Geno"]   = PKdn[1],
+                                            _["Loci"]           = PKdn[2],
+                                            _["Marriages"]      = S.attr("names")
+                                            );
+   return(ret);
 }
+

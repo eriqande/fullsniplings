@@ -1,0 +1,18 @@
+\name{gfreqs_from_afreqs}
+\alias{gfreqs_from_afreqs}
+\title{creates a vector of genotypes likelihoods from the allele freqs}
+\usage{
+gfreqs_from_afreqs(a)
+}
+\arguments{
+  \item{a}{the 2 x L array of allele frequencies.}
+}
+\value{
+a 3 x L array of genotypes frequencies
+}
+\description{
+Given a 2 x L array of allele frequencies, this function returns
+a 3 x L array of genotype frequencies expected under Hardy-Weinberg
+proportions.
+}
+

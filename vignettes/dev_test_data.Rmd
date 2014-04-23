@@ -61,9 +61,18 @@ names(fs_dev_test_data$mykiss_genos) <- make.unique(paste("Loc_", rep(1:(ncol(ge
 ```
 }
 
+### Making a full-sib list from the mykiss pedigree
+First we will disregard half siblings and just make a list of of integer identifiers of the full siblings.  
+```{r}
+# here are the indices of the kids starting from 0
+kidx <- as.integer(factor(fs_dev_test_data$mykiss_pedigree$Kid, levels=as.character(fs_dev_test_data$mykiss_pedigree$Kid))) - 1
+sib_list <- split(kidx, paste(fs_dev_test_data$mykiss_pedigree$Pa, fs_dev_test_data$mykiss_pedigree$Ma, sep="--"))
+ord_sib_list <- sib_list[order(sapply(sib_list, length), -sapply(sib_list, function(x) x[1]), decreasing=T)]
+fs_dev_test_data$mykiss_sib_list <- ord_sib_list
+```
 
 ## Save it all into a data object at the end
 Though I actually have this commented out:
 ```{r}
-# save(fs_dev_test_data, file="data/fs_dev_test_data.rda")
+# save(fs_dev_test_data, file="data/fs_dev_test_data.rda", compress="xz")
 ```
