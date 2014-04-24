@@ -1,14 +1,16 @@
 
 #' S3 class for arrays holding probabilities and likelihoods of different genotypes at different loci
 #' 
-#' This is the main S3 class for arrays that hold things like the likelihoods of the pair of parental
+#' @name geno_qty_array
+#' 
+#' @details This is the main S3 class for arrays that hold things like the likelihoods of the pair of parental
 #' genotypes given all their offspring, or the likelihood of an individual's genotypes given
 #' his observed phenotype.  Or, I suppose they could even be indicators of SNP genotypes in an 
 #' individual, or normalized probabilities, etc.  Several different objects inherit from
 #' this one.  I mostly have this because I wanted to learn more about S3 objects and I wanted
 #' to have an easy way of printing these to get information.  
 #' 
-#' @details Every object that inherits from this class is a numeric (or possibly an integer)
+#' Every object that inherits from this class is a numeric (or possibly an integer)
 #' matrix.  However, they are typically all objects that would be more naturally represented
 #' by higher dimensional arrays, but we don't do that because the operations that we will
 #' end up doing on them are typically column and row multiplies, etc, and it is easier in
@@ -25,8 +27,8 @@
 #'  names on those dimensions.}
 #'  \item{gqa_description}{A little blurb about what kinds of quantities this object is storing.} 
 #' }
-#' @name geno_qty_array
-#' NULL
+#' 
+NULL
 
 
 
@@ -35,7 +37,7 @@
 #' a method for printing objects inheriting from class geno_qty_array
 #' 
 #' Note that this method is called just by passing
-#' an object of class marriage_geno_lik_array to the print function.
+#' an object of class geno_qty_array to the print function.
 #' @param g An object of class \code{\link{geno_qty_array}}
 #' @export
 print.geno_qty_array <- function(g) {
@@ -55,6 +57,7 @@ print.geno_qty_array <- function(g) {
 
 
 #' return a geno_qty_array in its natural representation with its dimanames for viewing
+#' 
 #' @param g An object that inherits from the \code{\link{geno_qty_array}} class
 #' @export
 gqa_natural <- function(g) {

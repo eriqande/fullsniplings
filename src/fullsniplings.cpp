@@ -80,6 +80,54 @@ NumericVector per_kid_marriage_likelihoods(NumericVector offspring_likelihoods, 
 } 
 
 
+//' compute the genotype probs of a pair of full siblings with genotyping error
+//' 
+//' This could be done entirely in R, but it is hard to think it through and it seemed
+//' it would be hard to maintain.  Super easy in C.
+//' 
+//' @param  L the number of loci
+//' @param G the number of genotypic states
+//' @param PP parent pair probs as returned by unrelated_pair_gfreqs() for example
+//' @param TP transmision probs as returned by trans_probs()
+//' @param GE prob of observed genotypes given true genotypes, as returned by lik_array_from_simple_geno_err() for example
+//' @export
+// [[Rcpp::export]]
+NumericVector C_full_sibling_pair_gfreqs(int L, int G, NumericVector PP, NumericVector TP, NumericVector GE) {
+  int l, o1, o2, a, b, t1, t2;
+  NumericVector ret(G * G * L);
+  double acc;  // for accumulating sums
+  
+  #define pp(a, b, l) PP[a + (b * G) + (l * G * G)]
+  #define tp(a, b, c) TP[a + (G * b) + (G * G * c)]
+  #define ge(t, o, l) GE[t + (G * o) + (G * G * l)]
+  #define _ret(o1, o2, l) ret[o1 + (G * o2) + (G * G * l)]
+  
+  for(l=0; l<L; l++) {  // over loci
+    for(o1=0; o1<G; o1++) {  // over sibling 1's observed genotype
+      for(o2=0; o2<G; o2++) { // over sibling 2's observed genotype
+        acc = 0.0;  // initialize to accumulate a sum
+        for(a=0; a<G; a++) {  // over first parent geno
+          for(b=0; b<G; b++) { // over second parent geno
+            for(t1=0; t1<G; t1++) { // over sibling 1's true genotype
+              for(t2=0; t2<G; t2++) { // over sibling 2's true genotype
+                acc += pp(a, b, l) * tp(a, b, t1) * tp(a, b, t2) * ge(t1, o1, l) * ge(t1, o1, l) * ge(t2, o2, l);
+              }
+            }
+          }
+        }
+        _ret(o1, o2, l) = acc;  // assign it here to the output
+      }
+    }
+  }
+  return(ret);
+  
+  #undef pp
+  #undef tp
+  #undef ge
+  #undef _ret
+}
+
+
 //' compute the marriage node likelihoods given offspring specified in a full-sibling list
 //' 
 //' @param S a list of vectors that give the indices (base 0) of the individuals in the 

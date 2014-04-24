@@ -1,0 +1,14 @@
+\name{gqa_natural}
+\alias{gqa_natural}
+\title{return a geno_qty_array in its natural representation with its dimanames for viewing}
+\usage{
+gqa_natural(g)
+}
+\arguments{
+  \item{g}{An object that inherits from the
+  \code{\link{geno_qty_array}} class}
+}
+\description{
+return a geno_qty_array in its natural representation with its dimanames for viewing
+}
+

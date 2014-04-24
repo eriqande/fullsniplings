@@ -1,0 +1,19 @@
+\name{unrelated_pair_gfreqs}
+\alias{unrelated_pair_gfreqs}
+\title{creates a matrix of genotype probabilities for two unrelated individuals}
+\usage{
+unrelated_pair_gfreqs(gf)
+}
+\arguments{
+  \item{gf}{a 3 x L array of genotype frequencies}
+}
+\value{
+a geno_qty array.
+}
+\description{
+Given a 3 x L array of genotype frequencies, this function returns
+a 9 x L array of the joint genotype frequencies for two unrelated
+individuals.  The natural represenation of this would be a 3 x 3 x L
+array, so the class of the return value is a geno_qty_array
+}
+

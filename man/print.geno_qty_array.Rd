@@ -1,0 +1,14 @@
+\name{print.geno_qty_array}
+\alias{print.geno_qty_array}
+\title{a method for printing objects inheriting from class geno_qty_array}
+\usage{
+\method{print}{geno_qty_array}(g)
+}
+\arguments{
+  \item{g}{An object of class \code{\link{geno_qty_array}}}
+}
+\description{
+Note that this method is called just by passing
+an object of class geno_qty_array to the print function.
+}
+

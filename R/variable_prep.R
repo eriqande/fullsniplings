@@ -107,13 +107,69 @@ alle_freqs <- function(x, proportion=T, smidge=0.5) {
 #' @return a 3 x L array of genotypes frequencies
 #' @export
 gfreqs_from_afreqs <- function(a) {
-  if(any(a>1 | a<0)) stop("Allele freqs >1 or <0 in a")
-  if(any(colSums(a)>1)) stop("Allele freqs summing to more than 1 in a")
+  if(any(a>1.0000000001 | a<0)) stop("Allele freqs >1 or <0 in a")
+  if(any(abs(colSums(a)-1) > 1e-08)) stop("Allele freqs not summing to 1 in a")
   
   ret <- rbind(a[1,] * a[1,], 2 * a[1,] * a[2,], a[2,]*a[2,])
   dimnames(ret) <- list(Genos=1:3, Loci=colnames(a))
   ret
 }
+
+
+#' creates a matrix of genotype probabilities for two unrelated individuals
+#'
+#' Given a 3 x L array of genotype frequencies, this function returns
+#' a 9 x L array of the joint genotype frequencies for two unrelated
+#' individuals.  The natural represenation of this would be a 3 x 3 x L
+#' array, so the class of the return value is a geno_qty_array
+#' @param gf a 3 x L array of genotype frequencies
+#' @return a geno_qty array.
+#' @export
+unrelated_pair_gfreqs <- function(gf) {
+  if(any(gf>1.0000000001 | gf<0)) stop("Genotype freqs >1 or <0 in gf")
+  if(any(abs(colSums(gf)-1) > 1e-08)) stop("Genotype freqs not summing to 1 in gf")
+  if(dim(gf)[1] != 3) stop("gf must be a matrix with three rows")
+  ret <- sapply(1:ncol(gf), function(x) outer(gf[,x],gf[,x]))
+  dimnames(ret) <- list(UnrelatedPairGenos=paste(0:2, rep(0:2, each=3), sep="-"), Loci=colnames(gf))
+  attr(ret, "gqa_dimnames") <- list(Ind1 = 0:2, Ind2 = 0:2, Loci = colnames(gf))
+  attr(ret, "gqa_dim") <- c(3, 3, ncol(gf))
+  class(ret) <- "geno_qty_array"
+  ret
+}
+
+
+
+
+#' returns genotype probabilities of a pair of full siblings
+#' 
+#' Given that the parents are unrelated and have expected genotype
+#' frequencies given in the 3 x L array gf, and given genotypin error
+#' rates specified for each locus mu (will recycle) this function returns
+#' the probablities of the 9 possible genotypes (at all L loci) of
+#' a pair of full siblings in the population. This can be done entirely in R
+#' but it would be hard to come back to it and understand what it is doing,
+#' so I am going to do much of it with a call to an Rcpp function
+full_sibling_pair_gfreqs <- function(gf, mu=0) {
+  pp <- unrelated_pair_gfreqs(gf)  # joint parent pair genotype probs
+  tp <- trans_probs()  # transmission probs from parents to a single offpring.  This is 3 x 3 x 3
+  ge <- lik_array_from_simple_geno_err(ncol(gf), mu)
+  
+  # here make a call to the Rcpp function
+  ret <- matrix(C_full_sibling_pair_gfreqs(ncol(gf), 3, pp, tp, ge), nrow=9)
+  
+  dimnames(ret) <- list(FullSibPairGenos=paste(0:2, rep(0:2, each=3), sep="-"), Loci=colnames(gf))
+  attr(ret, "gqa_dimnames") <- list(Ind1 = 0:2, Ind2 = 0:2, Loci = colnames(gf))
+  attr(ret, "gqa_dim") <- c(3, 3, ncol(gf))
+  class(ret) <- "geno_qty_array"
+  
+  ret
+}
+
+
+
+
+
+
 
 #' makes L 3x3 tables of genotype likelihoods
 #' 
@@ -131,7 +187,7 @@ lik_array_from_simple_geno_err <- function(L, mu) {
   }), nrow=3)
   
   dimnames(y) <- list(
-      TrueGeno=1:3,
+      TrueGeno=0:2,
       ObsGeno=paste("mu_", rep(1:L, each=3), ".", 0:2, sep="")
     )
   y

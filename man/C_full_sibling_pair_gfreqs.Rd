@@ -1,0 +1,25 @@
+\name{C_full_sibling_pair_gfreqs}
+\alias{C_full_sibling_pair_gfreqs}
+\title{compute the genotype probs of a pair of full siblings with genotyping error}
+\usage{
+C_full_sibling_pair_gfreqs(L, G, PP, TP, GE)
+}
+\arguments{
+  \item{L}{the number of loci}
+
+  \item{G}{the number of genotypic states}
+
+  \item{PP}{parent pair probs as returned by
+  unrelated_pair_gfreqs() for example}
+
+  \item{TP}{transmision probs as returned by trans_probs()}
+
+  \item{GE}{prob of observed genotypes given true
+  genotypes, as returned by
+  lik_array_from_simple_geno_err() for example}
+}
+\description{
+This could be done entirely in R, but it is hard to think it through and it seemed
+it would be hard to maintain.  Super easy in C.
+}
+
