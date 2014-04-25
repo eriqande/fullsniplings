@@ -266,6 +266,29 @@ get_indiv_geno_lik <- function(SI, mu) {
 
 
 
+#' given some genotype likelihoods and a prior, compute the posterior
+#' 
+#' @param Lik an array of genotype likelihoods.  These will commonly be "something by N" where
+#' N is the number of individuals or marriages.  In that case, the "something" will be all the
+#' possible genotype states in such an entity.  (For example 9 x L for a marriage node)
+#' @param Pri prior on genotypes.  I will define this vaguely for now.  It must, of course
+#' correspond strucurally to Lik.  For example, for marriages, one will expect it to of 
+#' length 9 x L.  For individuals likelihoods, 3 x L, an so forth.
+#' @param nStates Number of genotypic states at each locus.  So, basically, Pri should be 
+#' of length nStates * L, and Lik should be of length nStates * L * N.  I could write 
+#' a function that figured out what nStates was from the array dimensions, but I actually
+#' think this way is more flexible.
+#' @details This could all be done within Rcpp and would probably be faster that way, but I am
+#' just prototyping this at the moment.
+#' @export
+geno_posterior <- function(Lik, Pri, nStates) {
+  if(length(Lik) %% length(Pri) != 0) stop("Length of Lik must be a multiple of the length of Pri.")
+  
+  pp <- as.vector(Pri) * Lik
+  normo <- rep(colSums(matrix(pp, nrow=nStates)), each = nStates)
+  
+  pp/normo
+}
 
 
 
