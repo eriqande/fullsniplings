@@ -26,8 +26,9 @@ I am just writing this down while I am writing these functions, to remind me of 
 Here are the standard steps that I would take in prepping up all the variables.  You will of
 course want to prepare by loading the library:
 ```{r}
-library(fullsniplings)
+#library(fullsniplings)
 library(microbenchmark)
+library(ggplot2)
 ```
 ### First, turn a data frame of SNP alleles into values of 0, 1, 2, or NA for each individual: 
 ```{r}
@@ -86,7 +87,7 @@ actually just starts from the expected genotype frequencies in the population. I
 rate that recycles over loci:
 ```{r}
 gf <- gfreqs_from_afreqs(afreqs)
-fsp <- full_sibling_pair_greqs(gf, mu = .005)
+fsp <- full_sibling_pair_gfreqs(gf, mu = .005)
 fsp[,]
 ```
 compare this to the unrelated pair probs and see that there are higher probabilities for
@@ -229,14 +230,39 @@ so that seems to be well within the "reasonable zone."
 
 ## Functions for simulating genotype probabilities, etc
 ### Pairwise sibling log-likelihood ratios
-One of my ideas for the program is to only propose moving individuals into sibships that already include an individual
-that they have chance of being a full sib with.  In order to figure out who we will say they "have a chance of being a
-full sib with" we will simulate a bunch of full sib genotypes from the underlying allele frequencies in the population
-and look at the distribution of their log likelihood ratios under the hypotheses of full sibling versus unrelated.
+One of my ideas for the program is to only propose moving individuals
+into sibships that already include an individual
+that they have chance of being a full sib with.  In order to figure out
+who we will say they "have a chance of being a
+full sib with" we will simulate a bunch of full sib genotypes
+from the underlying allele frequencies in the population
+and look at the distribution of their log likelihood ratios under
+the hypotheses of full sibling versus unrelated.
 
-So, we need to build those up.  Here we use a function that returns full sibling genotype probabilities, taking account
-of genotyping error:
+Here is a function that simulates genotypes of full sibling pairs an unrelated
+pairs and returns the loglikelihood ratios for those
+```{r  LoglSim, cache=TRUE}
+mykiss_gf <- gfreqs_from_afreqs(mykiss$afreqs)
+system.time(logls <- simulate_sib_pair_logls(mykiss_gf, 0.005, 100000))
+```
+Once we have those we can plot them if we are so inclined:
+```{r LoglHist, cache=TRUE, dependson="LoglSim"}
+ggplot(logls, aes(x = LogL_ratio, fill=Relat)) + geom_density(alpha = 0.3)
+```
+And, let's say that during Gibbs sampling for individuals we
+were going to only consider those sibships that included individuals
+having a Logl_ratio that was at least as high as 99.9% of the simulated values.
+If we did that, how many unrelated pairs would not make it in there, on 
+average?
+```{r LoglQuantile}
+q1000 <- quantile(logls$LogL_ratio[logls$Relat=="Full_Sib_Pairs"], probs=.001)
+q1000
 
+# and see how many of the unrelated pairs have logls below that:
+mean(logls$LogL_ratio[logls$Relat=="Unrelated_Pairs"] > q1000)
+```
+So, that appears to be about 3%.   That is pretty significant.  That is a 
+pretty large decreased in computational requirements.
 
 ## Functions that will be used during the MCMC, etc.
 ### multi_kid_marriage likelihoods
