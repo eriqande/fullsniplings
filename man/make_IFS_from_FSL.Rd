@@ -1,0 +1,16 @@
+\name{make_IFS_from_FSL}
+\alias{make_IFS_from_FSL}
+\title{create the "individuals full sibships" vector from the current state of the full sibling list}
+\usage{
+make_IFS_from_FSL(FSL, N)
+}
+\arguments{
+  \item{FSL}{the full sibling list}
+
+  \item{N}{the number of individuals that you should have
+  entries for}
+}
+\description{
+create the "individuals full sibships" vector from the current state of the full sibling list
+}
+

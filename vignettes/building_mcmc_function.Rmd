@@ -1,0 +1,25 @@
+---
+title: "Building up an MCMC function"
+author: Eric C. Anderson
+date: April, 2014
+output: 
+  html_document:
+    toc: true
+    highlight: pygments
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    highlight: pygments
+---
+
+Note that to get this to really be a vignette, I must insert this at the top:
+```
+<!--
+%\VignetteEngine{knitr::knitr}
+%\VignetteIndexEntry{Building up an MCMC function}
+-->
+```
+
+
+## Overview of what this function looks like
+I am building up the functions for this in the file `mcmc1.R`.  Check that out.

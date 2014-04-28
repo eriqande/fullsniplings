@@ -68,7 +68,11 @@ First we will disregard half siblings and just make a list of of integer identif
 kidx <- as.integer(factor(fs_dev_test_data$mykiss_pedigree$Kid, levels=as.character(fs_dev_test_data$mykiss_pedigree$Kid))) - 1
 sib_list <- split(kidx, paste(fs_dev_test_data$mykiss_pedigree$Pa, fs_dev_test_data$mykiss_pedigree$Ma, sep="--"))
 ord_sib_list <- sib_list[order(sapply(sib_list, length), -sapply(sib_list, function(x) x[1]), decreasing=T)]
-fs_dev_test_data$mykiss_sib_list <- ord_sib_list
+# now, put it in a list that holds the base-0 index of the sibship and also the base-0
+# indices of the sibship members
+tmp <- lapply(1:length(ord_sib_list), function(x) list(LMMI_Idx = x-1, Indivs = ord_sib_list[[x]]))
+names(tmp) <- names(ord_sib_list)
+fs_dev_test_data$mykiss_sib_list <- tmp
 ```
 
 
@@ -107,5 +111,5 @@ fs_dev_test_data$chinook_full_sibs_pedigree <- chinook_full_sibs_pedigree
 ## Save it all into a data object at the end
 Though I actually have this commented out:
 ```{r}
-# save(fs_dev_test_data, file="data/fs_dev_test_data.rda", compress="xz")
+#save(fs_dev_test_data, file="data/fs_dev_test_data.rda", compress="xz")
 ```

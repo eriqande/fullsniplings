@@ -262,7 +262,18 @@ q1000
 mean(logls$LogL_ratio[logls$Relat=="Unrelated_Pairs"] > q1000)
 ```
 So, that appears to be about 3%.   That is pretty significant.  That is a 
-pretty large decreased in computational requirements.
+pretty large decrease in computational requirements.
+
+
+## Functions used to Initialize the MCMC
+### initialize_sib_list_to_singletons
+This function merely creates a list of full sibling groups. Each sibling group contains
+the base-0 index of the individuals that are in the sibling group.  This function
+just puts everyone in their own sibling group.
+
+
+### make_IFS_from_FSL
+
 
 ## Functions that will be used during the MCMC, etc.
 ### multi_kid_marriage likelihoods

@@ -16,8 +16,8 @@ update_marriage_likelihoods_in_place(S, PK, ML, bz_idx)
   \item{ML}{the marriage likelihoods matrix to be modified}
 
   \item{bz_idx}{An integer vector holding the BASE-0
-  indices of the rows of ML to be updated. They will be
-  updated according to the current contents of S. //'}
+  indices of the components of S that will be accessed and
+  used to update ML.}
 }
 \value{
 This doesn't return anything.  It modifies ML in place via call be reference.  Our
