@@ -4,6 +4,11 @@
 \usage{
 full_sibling_pair_gfreqs(gf, mu = 0)
 }
+\arguments{
+  \item{gf}{array of genotype frequencies}
+
+  \item{mu}{genotyping error rates}
+}
 \description{
 Given that the parents are unrelated and have expected genotype
 frequencies given in the 3 x L array gf, and given genotypin error

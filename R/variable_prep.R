@@ -17,6 +17,8 @@
 #'          is while the second is the name of the "1" allele.}
 #'  }
 #' @export
+#' @examples
+#' snp_genos <- get_snp_genos(fs_dev_test_data$plain_snp_data)
 get_snp_genos <- function(GD) {
   if(ncol(GD) %% 2 != 0) stop("GD must have an even number of columns")
   L <- ncol(GD) / 2
@@ -49,7 +51,9 @@ get_snp_genos <- function(GD) {
 #' 
 #' @param g  an L x N matrix of SNP genotypes that are 0, 1, 2, or NA.
 #' @export
-#' 
+#' @examples
+#' snp_genos <- get_snp_genos(fs_dev_test_data$plain_snp_data)
+#' snp_indics <- genos_to_indicators(g = snp_genos$mat)
 genos_to_indicators <- function(g) {
   
   x <- rbind( c(1,0,0),
@@ -70,6 +74,10 @@ genos_to_indicators <- function(g) {
 #' 
 #' @param x a snp indicators array (3 x L x N)
 #' @export
+#' @examples 
+#' snp_genos <- get_snp_genos(fs_dev_test_data$plain_snp_data)
+#' snp_indics <- genos_to_indicators(g = snp_genos$mat)
+#' geno_counts <- count_genos(snp_indics)
 count_genos <- function(S) {
   d <- dim(S)
   x <- S
@@ -87,6 +95,11 @@ count_genos <- function(S) {
 #' @param smidge small amount to add to count of each allele (could be useful if there are zero counts on some alleles)
 #' @return A matrix with 2 rows (corresponding to alleles 0 and 1) and L columns.
 #' @export
+#' @examples 
+#' snp_genos <- get_snp_genos(fs_dev_test_data$plain_snp_data)
+#' snp_indics <- genos_to_indicators(g = snp_genos$mat)
+#' geno_counts <- count_genos(snp_indics)
+#' afreqs <- alle_freqs(geno_counts)
 alle_freqs <- function(x, proportion=T, smidge=0.5) {
   y <- rbind(colSums(x * c(2, 1, 0) , na.rm=T), colSums(x * c(0, 1, 2), na.rm=T) )
   dimnames(y)[[1]] <- 0:1
@@ -149,6 +162,9 @@ unrelated_pair_gfreqs <- function(gf) {
 #' a pair of full siblings in the population. This can be done entirely in R
 #' but it would be hard to come back to it and understand what it is doing,
 #' so I am going to do much of it with a call to an Rcpp function
+#' @param gf array of genotype frequencies
+#' @param mu genotyping error rates
+#' @export
 full_sibling_pair_gfreqs <- function(gf, mu=0) {
   pp <- unrelated_pair_gfreqs(gf)  # joint parent pair genotype probs
   tp <- trans_probs()  # transmission probs from parents to a single offpring.  This is 3 x 3 x 3

@@ -71,6 +71,39 @@ ord_sib_list <- sib_list[order(sapply(sib_list, length), -sapply(sib_list, funct
 fs_dev_test_data$mykiss_sib_list <- ord_sib_list
 ```
 
+
+## Big Chinook SNP-data set
+I am going to add one of the chinook data sets in which we inferred siblings from PBT.  I really should get a more updated one from
+Anthony, but for now I am just going to use what I had from the HansSib project.
+```{r}
+load("/Users/eriq/Documents/work/prj/HansSib/PBT_Data/FRH/FRH_sib-data.Rda")
+chinook_pedigree <- as.data.frame(matrix(unlist(strsplit(rownames(genos), split = "--")), byrow=T, ncol=3), stringsAsFactors = F)
+names(chinook_pedigree) <- c("Kid", "Pa", "Ma")
+
+# put the names in there as just the kids
+chinook_genos <- genos
+rownames(chinook_genos) <- chinook_pedigree$Kid
+
+# here are the number of full sibships each parent is in:
+num.fss <- table(unlist(strsplit(unique(paste(chinook_pedigree$Ma, chinook_pedigree$Pa, sep="--")), "--")))
+
+# here are the parents that are in more than one full sib group:
+hssers <- names(num.fss)[num.fss>1] 
+
+# these are the indices of the kids to keep as they are all full sibs,
+# (no half sibling relationships in there that we no of)
+retain <- !((chinook_pedigree$Ma %in% hssers) | (chinook_pedigree$Pa %in% hssers) )
+
+# now, make data sets that should have no half sibs in them
+chinook_full_sibs_pedigree <- chinook_pedigree[retain, ]
+chinook_full_sibs_genos <- chinook_genos[retain, ]
+
+fs_dev_test_data$chinook_genos <- chinook_genos
+fs_dev_test_data$chinook_pedigree <- chinook_pedigree
+fs_dev_test_data$chinook_full_sibs_genos <- chinook_full_sibs_genos
+fs_dev_test_data$chinook_full_sibs_pedigree <- chinook_full_sibs_pedigree
+```
+
 ## Save it all into a data object at the end
 Though I actually have this commented out:
 ```{r}

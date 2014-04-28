@@ -25,4 +25,7 @@ are not used.
 A SNP allele can be denoted by any string or number or NA.  Each SNP must have
 no more than two alleles.
 }
+\examples{
+snp_genos <- get_snp_genos(fs_dev_test_data$plain_snp_data)
+}
 

@@ -20,4 +20,10 @@ A matrix with 2 rows (corresponding to alleles 0 and 1) and L columns.
 \description{
 counts alleles from a geno_counts matrix
 }
+\examples{
+snp_genos <- get_snp_genos(fs_dev_test_data$plain_snp_data)
+snp_indics <- genos_to_indicators(g = snp_genos$mat)
+geno_counts <- count_genos(snp_indics)
+afreqs <- alle_freqs(geno_counts)
+}
 

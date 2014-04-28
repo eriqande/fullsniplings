@@ -172,3 +172,34 @@ NumericMatrix multi_kid_marriage_likelihoods(List S, NumericMatrix PK) {
    return(ret);
 }
 
+
+//' Update one row of a marriage likelihood matrix IN PLACE!
+//' 
+//' The intended use of this is to update the marriage likelihoods after an individual has
+//' been moved from one sibship to another.  So, for example, if you moved an individual 
+//' from sibship 40 to sibship 291 (as subscripted in R) then you would want to run this
+//' with \code{bz_idx} equal to \code{c(39, 290)}.  
+//' @param S a list of vectors that give the indices (base 0) of the individuals in the 
+//' full sibling groups.  
+//' @param PK per-kid marriage likelihoods.  This must be of class \code{\link{marriage_geno_lik_array}},
+//' which is just a matrix underneath with G x G x L rows and N columns.
+//' @param ML the marriage likelihoods matrix to be modified
+//' @param bz_idx An integer vector holding the BASE-0 indices of the rows of ML to be updated.
+//' They will be updated according to the current contents of S.  
+//' //' @return This doesn't return anything.  It modifies ML in place via call be reference.  Our
+//' goal here is to make updates without copying a lot of memory.
+//' @export
+// [[Rcpp::export]]
+void update_marriage_likelihoods_in_place(List S, NumericMatrix PK, NumericMatrix ML, IntegerVector bz_idx) {
+  int yl;
+  IntegerVector y;
+  
+  for(IntegerVector::iterator i = bz_idx.begin(); i != bz_idx.end(); ++i) {
+    y = as<IntegerVector>(S[*i]);
+    yl = y.length();
+    ML( _, *i) = PK( _, y[0]);   // this initializes it to accumulate a product
+    for(int yi=1; yi<yl; yi++) {
+      ML(_, *i) =  ML(_, *i) * PK(_, y[yi]);
+    } 
+  }
+}

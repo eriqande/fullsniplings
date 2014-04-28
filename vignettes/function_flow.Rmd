@@ -26,7 +26,7 @@ I am just writing this down while I am writing these functions, to remind me of 
 Here are the standard steps that I would take in prepping up all the variables.  You will of
 course want to prepare by loading the library:
 ```{r}
-#library(fullsniplings)
+library(fullsniplings)
 library(microbenchmark)
 library(ggplot2)
 ```
@@ -152,7 +152,7 @@ but also carries around attributes `igla_dimnames` and `igla_dim` which can be u
 to print it in a nice format.
 
 Here it is in action:
-```{r}
+```{r GetIndivGenoLiks}
 geno_liks <- get_indiv_geno_lik(
                       SI = snp_indics, 
                       mu = c(0.0, 0.001, 0.005, 0.01, 0.1)
@@ -289,3 +289,31 @@ Aha, let us print just a part of it.  Maybe the first two marriages and the firs
 ```{r}
 gqa_natural(multi_mar_lik)[ , , 1:3, 1:2]
 ```
+
+###  A function to update just a few marriage likelihoods in place
+So, I have written the function `update_marriage_likelihoods_in_place` which I hope uses Rcpp's call be reference capabilities to modify the marriage likelihoods array in place.  Let us test it out:
+```{r}
+bb <- multi_mar_lik     # make another copy promise
+bb[ , c(101, 201, 301)] <- 0  # change it.  That forces copying the promise from multi_mar_lik, too
+aa <- bb                # promise copy to aa
+
+# now let's see how this is looking:
+which(colSums(bb)==0)
+which(colSums(aa)==0)
+which(colSums(multi_mar_lik)==0)
+```
+OK, now we will try to reconstitute rows 101, 201, and 301:
+```{r}
+update_marriage_likelihoods_in_place(fs_dev_test_data$mykiss_sib_list, mykiss$pk_marriage_liks, bb, c(100, 200, 300))
+```
+And see what changed:
+```{r}
+which(colSums(bb)==0)
+which(colSums(aa)==0)
+which(colSums(multi_mar_lik)==0)
+identical(multi_mar_lik, bb)
+```
+Well, it looks like `bb` was modified, and so was `aa`.  So, that is the dangerous part.  Modifying via a pointer in Rcpp does not force
+a promise to be copied.  Interesting.  So, clearly I should rewrite `multi_kid_marriage_likelihoods` to just be an R wrapper for 
+`update_marriage_likelihoods_in_place`, and deal with all the dimnames naming and what not in R.  OK. I 
+will get around to that eventually.

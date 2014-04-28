@@ -1,0 +1,18 @@
+\name{simulate_sib_pair_logls}
+\alias{simulate_sib_pair_logls}
+\title{simulate pairs of full sibs and pairs of unrelateds and compute loglikelihoods}
+\usage{
+simulate_sib_pair_logls(gf, mu = 0.005, Reps = 10000)
+}
+\arguments{
+  \item{gf}{a genotype frequencies array}
+
+  \item{Reps}{the number of replicates to draw}
+
+  \item{Genotyping}{error rate (gets recycled over loci as
+  necessary)}
+}
+\description{
+simulate pairs of full sibs and pairs of unrelateds and compute loglikelihoods
+}
+

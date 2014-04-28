@@ -10,4 +10,9 @@ count_genos(S)
 \description{
 counts up genotypes from a snp_indicators array
 }
+\examples{
+snp_genos <- get_snp_genos(fs_dev_test_data$plain_snp_data)
+snp_indics <- genos_to_indicators(g = snp_genos$mat)
+geno_counts <- count_genos(snp_indics)
+}
 
