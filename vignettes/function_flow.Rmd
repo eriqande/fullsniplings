@@ -65,7 +65,7 @@ gfreqs_from_afreqs(afreqs)
 
 ### Genotype frequencies of an unrelated pair 
 And, here is a function that computes the probabilities of a pair of unrelated genotypes.  The output gets stored
-as a matrix with 9 rows and L columns.
+as a matrix with 9 rows and L columns. Note that this will give you the prior on parental genotypes.
 ```{r}
 upgf <- unrelated_pair_gfreqs(gfreqs_from_afreqs(afreqs))
 upgf
@@ -274,6 +274,8 @@ just puts everyone in their own sibling group.
 
 ### make_IFS_from_FSL
 
+### make_LMMFS_from_FSL_and_LMMI
+
 
 ## Functions that will be used during the MCMC, etc.
 ### multi_kid_marriage likelihoods
@@ -288,9 +290,21 @@ With those two ingredients we have a function (in Rcpp, as it seems that will be
 returns a 3 x 3 x L x M array of multi-kid marriage likelihoods.  M is the number of 
 marriages (and is the length of the sib list.)
 ```{r}
-multi_mar_lik <- multi_kid_marriage_likelihoods(fs_dev_test_data$mykiss_sib_list, mykiss$pk_marriage_liks)
-microbenchmark(multi_kid_marriage_likelihoods(fs_dev_test_data$mykiss_sib_list, mykiss$pk_marriage_liks) )
+# this is broken now that I have updated the way fs_dev_test_data$mykiss_sib_list is stored.
+#multi_mar_lik <- multi_kid_marriage_likelihoods(fs_dev_test_data$mykiss_sib_list, mykiss$pk_marriage_liks)
+#microbenchmark(multi_kid_marriage_likelihoods(fs_dev_test_data$mykiss_sib_list, mykiss$pk_marriage_liks) )
+
+# now I do it like this:
+multi_mar_lik <- make_LMMFS_from_FSL_and_LMMI(fs_dev_test_data$mykiss_sib_list, mykiss$pk_marriage_liks)
+microbenchmark(make_LMMFS_from_FSL_and_LMMI(fs_dev_test_data$mykiss_sib_list, mykiss$pk_marriage_liks))
 ```
+Note that make_LMMFS_from_FSL_and_LMMI potentially overallocates memory as it uses the dimensions of its LMMI argument
+to allocate to LMMFS. So, let's chop off the parts it does not need:
+
+
+Also, I fear that accessing elements of a list is much slower in Rcpp than accessing elements of vectors, so perhaps I will
+rewrite things to not store the sib_list as a list of lists.  We'll see though...
+
 Let us see what the ouput looks like:
 ```{r}
 multi_mar_lik

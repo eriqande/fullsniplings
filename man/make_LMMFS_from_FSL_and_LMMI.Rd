@@ -3,13 +3,17 @@
 \title{create the "Likelihood Matrix of Marriages given Full Siblings" from a full sibling list
 and the Likelihood Matrix of Marriages given Individuals}
 \usage{
-make_LMMFS_from_FSL_and_LMMI(FSL, LMMI)
+make_LMMFS_from_FSL_and_LMMI(FSL, LMMI, allocateFromLMMI = TRUE)
 }
 \arguments{
   \item{FSL}{a full sibling list}
 
   \item{LMMI}{a Likelihood Matrix of Marriages given
   Individuals}
+
+  \item{allocateFromLMMI}{should the dimension of LMMI be
+  used to allocate memory for LMMFS.  If FALSE then it
+  won't overallocate.}
 }
 \description{
 This is mostly a wrapper for update_marriage_likelihoods_in_place

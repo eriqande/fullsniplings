@@ -22,6 +22,11 @@ full_sib_mcmc <- function(genos, mu) {
   # get the initial condition for the LMMFS
   LMMFS <- make_LMMFS_from_FSL_and_LMMI(FSL, LMMI)
   
+  # get the initial condition for the posteriors on the parent genotypes from each full sibship in LMMFS
+  PMMFS <- make_PMMFS_from_FSL_and_LMMFS(FSL, LMMFS, Vars$afreqs)
+  
+  # now we set the initial conditions on the Kid-Prongs!
+  
   
 }
 
@@ -56,11 +61,47 @@ make_IFS_from_FSL <- function(FSL, N) {
 #' This is mostly a wrapper for update_marriage_likelihoods_in_place
 #' @param FSL a full sibling list
 #' @param LMMI a Likelihood Matrix of Marriages given Individuals
+#' @param allocateFromLMMI  should the dimension of LMMI be used to allocate memory 
+#' for LMMFS.  If FALSE then it won't overallocate.
 #' @export
-make_LMMFS_from_FSL_and_LMMI <- function(FSL, LMMI) {
-  ret <- LMMI  # make it big
-  ret[] <- 0.0  # set all values to 0.0, initially. Note that this also makes ret truly separate from LMMI
+make_LMMFS_from_FSL_and_LMMI <- function(FSL, LMMI, allocateFromLMMI = TRUE) {
+  if(allocateFromLMMI == TRUE) {
+    ret <- LMMI  # make it big
+    ret[] <- 0.0  # set all values to 0.0, initially. Note that this also makes ret truly separate from LMMI
+  } else {
+    ret <- matrix(0, nrow=nrow(LMMI), ncol=length(FSL))
+  }
   
   update_marriage_likelihoods_in_place(FSL, LMMI, ret, 0:(length(FSL)-1))
+  
+  ret
+}
+
+
+
+#' create a "Posterior Matrix of Marriages given Full Siblings" from a full sibling
+#' list and LMMFS
+#' 
+#' This is mostly a wrapper for update_marriage_posteriors_in_place.  It assumes that the 
+#' genotypes of the parents of each marriage are just drawn from the allele frequencies
+#' under Hardy-Weinberg equilibrium
+#' @param FSL a full sibling list
+#' @param LMMFS a Likelihood Matrix of Marriages given Full Siblings
+#' @param af the vector of allele frequencies
+#' @export
+make_PMMFS_from_FSL_and_LMMFS <- function(FSL, LMMFS, af) {
+  ret <- LMMFS
+  ret[] <- 0.0
+  
+  UPG <- unrelated_pair_gfreqs(gfreqs_from_afreqs(af))  # this is our prior on parent genotypes in the simplest case
+
+  update_marriage_posteriors_in_place(
+        FSL, 
+        LMMFS, 
+        ret, 
+        UPG, 
+        9, 
+        0:(length(FSL)-1)
+  )
   ret
 }

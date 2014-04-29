@@ -206,3 +206,57 @@ void update_marriage_likelihoods_in_place(List S, NumericMatrix PK, NumericMatri
     } 
   }
 }
+
+
+
+//' Calculate/update one row of a marriage Posterior matrix IN PLACE!
+//' 
+//' The intended use of this is to update the marriage posteriors after an individual has
+//' been moved from one sibship to another.  So, for example, if you moved an individual 
+//' from sibship 40 to sibship 291 (as subscripted in R) then you would want to run this
+//' with \code{bz_idx} equal to \code{c(39, 290)}, after you had updated the LMMFS.  
+//' @param S a list of lists each with two components.  The first is LMMI_Idx which is the base-0
+//' index of the Marriage that the component is referring to, and the second is Indivs which give
+//' the indices (base 0) of the individuals in the 
+//' full sibling groups.  
+//' @param PK per-kid marriage likelihoods.  This must be of class \code{\link{marriage_geno_lik_array}},
+//' which is just a matrix underneath with G x G x L rows and N columns.
+//' @param ML the marriage likelihoods matrix
+//' @param MP the marriage posteriors matrix that is to be updated
+//' @param Pri  the join prior probbabilities of the parent pair
+//' @param NGS Number of genotypic states.  For pairs of parents, for example, this will be 9. 
+//' @param bz_idx An integer vector holding the BASE-0 indices of the components of S that 
+//' will be accessed and used to update ML.
+//' 
+//' @return This doesn't return anything.  It modifies ML in place via call be reference.  Our
+//' goal here is to make updates without copying a lot of memory.
+//' @export
+// [[Rcpp::export]]
+void update_marriage_posteriors_in_place(List S, NumericMatrix ML, NumericMatrix MP, NumericMatrix Pri, int NGS, IntegerVector bz_idx) {
+  int yl;
+  IntegerVector y;
+  List tmp;
+  int nL = ML.nrow() / NGS;  // this should be the number of loci
+  int j,k,rr;
+  double sum;
+  
+  for(IntegerVector::iterator i = bz_idx.begin(); i != bz_idx.end(); ++i) {
+    tmp = S[*i];
+    y = as<IntegerVector>(tmp["Indivs"]);
+    yl = y.length();
+    MP( _, *i) = ML( _, *i) * Pri;   // multiply it by the prior
+    
+    // now we cycle over the loci and normalize the sums in each
+    for(j=0; j<nL; j++) {
+      sum = 0.0;
+      for(k=0; k<NGS; k++) {
+        rr = j * NGS + k;
+        sum += MP(rr, *i);
+      }
+      for(k=0; k<NGS; k++) {
+        rr = j * NGS + k;
+        MP(rr, *i) /= sum;
+      }
+    }
+  }
+}
