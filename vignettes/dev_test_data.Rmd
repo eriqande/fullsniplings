@@ -22,6 +22,18 @@ we will declare here:
 fs_dev_test_data <- list()
 ```
 
+## Simplest of data sets
+Here we make a data set of 2 SNPs and three individuals
+```{r}
+simp <- as.data.frame(rbind(
+  c(1,1,  2,2),
+  c(1,2, 1,1),
+  c(2,2, 1,2)
+  ))
+rownames(simp) <- paste("Indiv", 1:3, sep="")
+names(simp) <- make.unique(paste("Loc_", rep(1:2, each=2), sep=""))
+fs_dev_test_data$simplest_genos <- simp
+```
 ## Simple SNP data set
 Here we want something that we can use to test that our data input is working:
 ```{r, cache=TRUE}

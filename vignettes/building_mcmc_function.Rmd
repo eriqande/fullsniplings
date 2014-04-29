@@ -20,6 +20,76 @@ Note that to get this to really be a vignette, I must insert this at the top:
 -->
 ```
 
+```{r}
+#library(fullsniplings)
+```
 
 ## Overview of what this function looks like
 I am building up the functions for this in the file `mcmc1.R`.  Check that out.
+
+## Some quick benchmarking:
+I am doing a little benchmarking.  First we get some data together and some variables prepped:
+```{r}
+# set values from test data
+genos <- fs_dev_test_data$mykiss_genos
+mu <- 0.005
+
+# first get all the data. Store it in a list that we will add other Variables to, as well
+Vars <- prep_all_variables(genos = genos, geno_error_rates = mu)
+# set the full sibling list to be the true full sibships
+FSL <- fs_dev_test_data$mykiss_sib_list
+# from that list, make the "Individuals' full sibling groups" vector
+IFS <- make_IFS_from_FSL(FSL, ncol(Vars$geno_liks))
+# set the LMMI to be Vars$pk_marriage_liks (just to keep notation consistent with my notebook notes)
+LMMI <- Vars$pk_marriage_liks
+# get the initial condition for the LMMFS
+LMMFS <- make_LMMFS_from_FSL_and_LMMI(FSL, LMMI)
+# get the initial condition for the posteriors on the parent genotypes from each full sibship in LMMFS
+PMMFS <- make_PMMFS_from_FSL_and_LMMFS(FSL, LMMFS, Vars$afreqs)
+# now we set the initial conditions on the Kid-Prongs!
+KidProngs <- make_KidProngs_from_FSL_and_PMMFS(FSL, PMMFS)
+```
+
+Now, we are going to compute the full conditional (just the likelihood parts) of individual 13 (base-0 he is 12) 
+who is a member of the largest full sibling group (which is first on the FSL).  We do it via R functions and 
+also with my Cpp function:
+```{r}
+DoneByR <- sapply(1:ncol(KidProngs), function(x) prod(colSums(matrix(KidProngs[,x] * Vars$geno_liks[, 13], nrow=3))))
+DoneByC <- kid_prongs_times_ind_likelihoods(FSL, Vars$geno_liks[, 13], KidProngs)
+cbind(DoneByC, DoneByR[1:length(DoneByC)])[1:10,]
+```
+Looking at the results, see that clearly the first sibship is the correct one!
+
+Now, let's see how long these take:
+```{r}
+microbenchmark(kid_prongs_times_ind_likelihoods(FSL, Vars$geno_liks[, 13], KidProngs))
+```
+That is 675 microseconds for all 803 of the full sibling groups.  So, less than 1/1000th of a second to updatea
+against all 803.  That is cool.
+
+### The gibbs update function
+Let's try a little test of our Gibbs update function.  It is incomplete, but should spit back those
+full conditional likelihoods
+```{r}
+GFREQS <- gfreqs_from_afreqs(Vars$afreqs)
+UGP <- unrelated_pair_gfreqs(gfreqs_from_afreqs(Vars$afreqs))
+TP  <- trans_probs()
+f <- function(Ind)  gibbs_update_one_indiv_in_place( 
+  FSL,
+  IFS,        # length N
+  LMMI,       # 3 * 3 * L rows, N columns
+  LMMFS,      # 3 * 3 * L rows, N columns
+  PMMFS,      # 3 * 3 * L rows, N columns
+  KidProngs,  # 3 * L rows, N columns
+  integer(0),       # IntegerVector treated as a stack
+  GFREQS,     # Genotype freqs given the allele freqs 3 rows, L cols
+  UGP,        # unrelated_pair_gfreqs(gfreqs_from_afreqs(af))  3 * 3 rows, L cols
+  TP,         # Transmission probs 3 * 3 * 3
+  Vars$geno_liks,    # Individual geno likes.  3 * L rows, N columns
+  Ind                   # Index (base-0) of individual to be updated
+)
+```
+Now we have defined ``f(x)`` to do what turns out to be most of the computations for an update to individual x.
+```{r}
+microbenchmark(f(12))
+```

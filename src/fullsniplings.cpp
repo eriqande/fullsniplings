@@ -195,14 +195,16 @@ void update_marriage_likelihoods_in_place(List S, NumericMatrix PK, NumericMatri
   int yl;
   IntegerVector y;
   List tmp;
+  int marriage;
   
   for(IntegerVector::iterator i = bz_idx.begin(); i != bz_idx.end(); ++i) {
     tmp = S[*i];
     y = as<IntegerVector>(tmp["Indivs"]);
+    marriage = as<int>(tmp["LMMI_Idx"]);
     yl = y.length();
-    ML( _, *i) = PK( _, y[0]);   // this initializes it to accumulate a product
+    ML( _, marriage) = PK( _, y[0]);   // this initializes it to accumulate a product
     for(int yi=1; yi<yl; yi++) {
-      ML(_, *i) =  ML(_, *i) * PK(_, y[yi]);
+      ML(_, marriage) =  ML(_, marriage) * PK(_, y[yi]);
     } 
   }
 }
@@ -239,24 +241,169 @@ void update_marriage_posteriors_in_place(List S, NumericMatrix ML, NumericMatrix
   int nL = ML.nrow() / NGS;  // this should be the number of loci
   int j,k,rr;
   double sum;
+  int marriage;
   
   for(IntegerVector::iterator i = bz_idx.begin(); i != bz_idx.end(); ++i) {
     tmp = S[*i];
-    y = as<IntegerVector>(tmp["Indivs"]);
-    yl = y.length();
-    MP( _, *i) = ML( _, *i) * Pri;   // multiply it by the prior
+    marriage = as<int>(tmp["LMMI_Idx"]);
+    MP( _, marriage) = ML( _, marriage) * Pri;   // multiply it by the prior
     
     // now we cycle over the loci and normalize the sums in each
     for(j=0; j<nL; j++) {
       sum = 0.0;
       for(k=0; k<NGS; k++) {
         rr = j * NGS + k;
-        sum += MP(rr, *i);
+        sum += MP(rr, marriage);
       }
       for(k=0; k<NGS; k++) {
         rr = j * NGS + k;
-        MP(rr, *i) /= sum;
+        MP(rr, marriage) /= sum;
       }
     }
   }
 }
+
+
+
+
+//' update marriage node kid prongs IN PLACE
+//' 
+//' This uses the information in the PMMFS matrix (the 
+//' "Posterior Matrix of Marriages given Full Siblings") to calculate
+//' the posterior predictive distribution for the next full sibling
+//' in the full sibling group which is referenced through S and bz_idx
+//'  
+//' @param S a list of lists each with two components.  The first is LMMI_Idx which is the base-0
+//' index of the Marriage that the component is referring to, and the second is Indivs which give
+//' the indices (base 0) of the individuals in the 
+//' full sibling groups.  
+//' @param MP the marriage posteriors matrix to be used in the udpating. Should be a matrix
+//' that has NGS_P * L rows, where L is the number of loci.
+//' @param KP Kid prongs.  This is what gets updated in place. Should be a matrix that has
+//' NGS_K * L rows, where L is the number of loci.
+//' @param NGS_P Number of genotypic states in a parent pair.  This will typically be 9.
+//' @param NGS_K Number of genotypic states in a kid.  This will typically be 3
+//' @param TP transmision probs as returned by trans_probs()
+//' @param bz_idx An integer vector holding the BASE-0 indices of the components of S that 
+//' will be accessed and used to update ML.
+//' 
+//' @return This doesn't return anything.  It modifies Prongs in place via call by reference.  Our
+//' goal here is to make updates without copying a lot of memory.
+// [[Rcpp::export]]
+void update_marriage_node_kid_prongs_in_place(List S, NumericMatrix MP, NumericMatrix KP, 
+                                         int NGS_P, int NGS_K, NumericVector TP, IntegerVector bz_idx) {
+  int yl;
+  IntegerVector y;
+  List tmp;
+  int nL = KP.nrow() / NGS_K;  // this should be the number of loci
+  int j,k, p;
+  double sum;
+  int marriage;
+  
+  #define KP_ KP(k + NGS_K * j, marriage)
+  #define MP_ MP(p + NGS_P * j, marriage)
+  #define TP_ TP(p + NGS_P * k)
+  
+  for(IntegerVector::iterator i = bz_idx.begin(); i != bz_idx.end(); ++i) {
+    tmp = S[*i];
+    marriage = as<int>(tmp["LMMI_Idx"]);
+    for(j=0; j<nL; j++) {  // cycle over loci
+      sum = 0.0;
+      for(k=0; k<NGS_K; k++) {  // cycle over the 3 kid genotypes at each locus
+        KP_ = 0.0;     // initialize to accumulate a su
+        for(p=0; p<NGS_P; p++) { // cycle over the 9 parent genotypes at each locus
+          KP_ += MP_ * TP_;
+        }
+        sum += KP_;
+      }
+      for(k=0; k<NGS_P; k++) {  // cycle over the kid genotypes one more time to normalize them to sum to one
+        KP_ /= sum;
+      }
+    }
+  }
+  #undef KP_
+  #undef MP_
+  #undef TP_
+}
+
+
+
+// [[Rcpp::export]]
+NumericVector kid_prongs_times_ind_likelihoods(List S, NumericVector IndGenoLik, NumericMatrix KidProngs) {
+  List tmp;
+  NumericVector ret(S.length());
+  int fsp;
+  double prod = 1.0;
+  int j,k;
+  int nL = IndGenoLik.length() / 3; 
+  double sum;
+  
+  for(int i=0; i<S.length(); i++) {  // cycle over elements of S
+    tmp = S[i];
+    int fsp = as<int>(tmp["LMMI_Idx"]);
+    prod = 1.0;  // prepare to accumulate a product
+    
+    for(j=0; j<nL; j++) {
+      sum = 0.0;
+      for(k=0; k<3; k++) {
+        sum+= KidProngs(k + 3 * j, fsp) * IndGenoLik[k + 3 * j];
+      }
+      prod *= sum;
+    }
+    ret[i] = prod;
+  }
+  return ret;
+}
+
+
+// [[Rcpp::export]]
+List gibbs_update_one_indiv_in_place( List FSL,
+                                      IntegerVector IFS,        
+                                      NumericMatrix LMMI,       
+                                      NumericMatrix LMMFS,      
+                                      NumericMatrix PMMFS,      
+                                      NumericMatrix KidProngs,  
+                                      IntegerVector Pile,       
+                                      NumericMatrix Gfreqs,     
+                                      NumericMatrix UPG,        
+                                      NumericVector TP,         
+                                      NumericMatrix IndLiks,    
+                                      int Ind                   
+                                      ) {
+    int fs = IFS[Ind];
+    List tmp = FSL[fs];
+    int fsp = tmp["LMMI_Idx"];  // this is the column that Ind's current full sib group occuppies in LMMFS
+                                // and PMMFS, and KidProngs
+    IntegerVector current_sibs = tmp["Indivs"];  // everyone in Ind's current sibgroup (including himself)
+    int n = current_sibs.length();
+    List ret(5);
+                                
+    // now make some copies of what it looked like before the update (easier to go back to this)                            
+    NumericVector LMMFS_orig_col = LMMFS( _, fsp);
+    NumericVector PMMFS_orig_col = PMMFS( _, fsp);
+    NumericVector KidProngs_orig_col = KidProngs( _, fsp);
+    
+    if(n==1) {  // if Ind is the only one in his current sibgroup, then use that sibgroup to see if he 
+                // wants to be a solo sib-group still.
+      KidProngs( _, fsp) = Gfreqs; 
+    }
+    else if(n>1) { // if there are others in his sibgroup, divide out his likelihood contribution to the 
+                   // the LMMFS and recompute PMMFS and KidProngs
+       LMMFS( _, fsp) = LMMFS( _, fsp) / LMMI( _, Ind);
+       update_marriage_posteriors_in_place(FSL, LMMFS, PMMFS, UPG, 9, fs);
+       update_marriage_node_kid_prongs_in_place(FSL, PMMFS, LMMI, 9, 3, TP, fs);
+    }
+    else  {
+      ; // need to throw an error here.
+    }
+    
+    
+    // now, we can zoom over all the KidProngs and compute the full conditional likelihood of 
+    // Ind belonging to each. 
+    NumericVector FCLs = kid_prongs_times_ind_likelihoods(FSL, IndLiks( _, Ind), KidProngs);
+    
+    ret[0] = FCLs;
+    
+    return(ret);
+}
+

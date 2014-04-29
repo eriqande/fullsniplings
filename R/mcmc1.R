@@ -26,7 +26,7 @@ full_sib_mcmc <- function(genos, mu) {
   PMMFS <- make_PMMFS_from_FSL_and_LMMFS(FSL, LMMFS, Vars$afreqs)
   
   # now we set the initial conditions on the Kid-Prongs!
-  
+  KidProngs <- make_KidProngs_from_FSL_and_PMMFS(FSL, PMMFS)
   
 }
 
@@ -103,5 +103,29 @@ make_PMMFS_from_FSL_and_LMMFS <- function(FSL, LMMFS, af) {
         9, 
         0:(length(FSL)-1)
   )
+  ret
+}
+
+
+#' create a KidProngs matrix (matrix of posterior predictives for the next fullsibling in a full sibship) 
+#' from a PMMFS and a FSL.  
+#' 
+#' This is mostly a wrapper for update_marriage_node_kid_prongs_in_place.  
+#' @param FSL a full sibling list
+#' @param PMMFS a Posterior Matrix of Marriages given Full Siblings
+#' @export
+make_KidProngs_from_FSL_and_PMMFS <- function(FSL, PMMFS) {
+  nL <- nrow(PMMFS) / 9  # number of loci
+  nN <- ncol(PMMFS)      # number of individuals
+  
+  ret <- matrix(0.0, nrow = 3 * nL, ncol = nN)  # make the matrix to return
+  
+  # then modify ret in place
+  update_marriage_node_kid_prongs_in_place(
+    FSL, PMMFS, ret, 
+    9, 3, trans_probs(), 
+    0:(length(FSL)-1))
+  
+  # and return it.  I really should make it a geno_qty_array, but I am tired of that at the moment
   ret
 }
