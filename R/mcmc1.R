@@ -1,33 +1,73 @@
 
 
-#' do a whole MCMC analysis starting from a data set and genotyping error rates
+#' initilize all the variables to do a full sibling analysis given genos and mu
 #' 
+#' This returns everything in a named list suitable for do.calling 
+#' the MCMC sweep function.
 #' @param genos  The data frame of SNP genotypes
 #' @param mu  Genotyping error rates per locus (recycles as necessary)
 #' @export
-full_sib_mcmc <- function(genos, mu) {
+full_sib_mcmc_initialize <- function(genos, mu) {
+  
+  message("Starting mcmc variable initialization at ", date())
   
   # first get all the data. Store it in a list that we will add other Variables to, as well
   Vars <- prep_all_variables(genos = genos, geno_error_rates = mu)
   
+  ret <- list()
+  
   # get the full sibling list
-  FSL <- initialize_sib_list_to_singletons( ncol(Vars$geno_liks) )
+  ret$FSL <- initialize_sib_list_to_singletons( ncol(Vars$geno_liks) )
   
   # from that list, make the "Individuals' full sibling groups" vector
-  IFS <- make_IFS_from_FSL(FSL, ncol(Vars$geno_liks))
+  ret$IFS <- make_IFS_from_FSL(ret$FSL, ncol(Vars$geno_liks))
   
   # set the LMMI to be Vars$pk_marriage_liks (just to keep notation consistent with my notebook notes)
-  LMMI <- Vars$pk_marriage_liks
+  ret$LMMI <- Vars$pk_marriage_liks
   
   # get the initial condition for the LMMFS
-  LMMFS <- make_LMMFS_from_FSL_and_LMMI(FSL, LMMI)
+  ret$LMMFS <- make_LMMFS_from_FSL_and_LMMI(ret$FSL, ret$LMMI)
   
   # get the initial condition for the posteriors on the parent genotypes from each full sibship in LMMFS
-  PMMFS <- make_PMMFS_from_FSL_and_LMMFS(FSL, LMMFS, Vars$afreqs)
+  ret$PMMFS <- make_PMMFS_from_FSL_and_LMMFS(ret$FSL, ret$LMMFS, Vars$afreqs)
   
   # now we set the initial conditions on the Kid-Prongs!
-  KidProngs <- make_KidProngs_from_FSL_and_PMMFS(FSL, PMMFS)
+  ret$KidProngs <- make_KidProngs_from_FSL_and_PMMFS(ret$FSL, ret$PMMFS)
   
+  # this is just an integer vector that will be a stack we push empty entries onto and off of
+  ret$Pile <- integer(length(ret$IFS))
+  
+  # these are just the genotype frequencies
+  ret$Gfreqs <- gfreqs_from_afreqs(Vars$afreqs) 
+  
+  # these are the unrelated pair genotype frequencies (3 x 3 x L)
+  ret$UPG <- unrelated_pair_gfreqs(ret$Gfreqs)
+  
+  # these are the transition probs (3 x 3 x 3)
+  ret$TP <- trans_probs()
+  
+  # these are the likelihoods of all the genotypes of the indivs in the sample
+  ret$IndLiks <- Vars$geno_liks
+  
+  # now simulate to see what the distribution of logls is
+  message("Staring LogL simulation at ", date(), "    This will take a few seconds")
+  logls <- simulate_sib_pair_logls(ret$Gfreqs, 0.005, 100000)
+  q1000 <- quantile(logls$LogL_ratio[logls$Relat=="Full_Sib_Pairs"], probs=.001)
+  message("Done with LogL simulation at ", date())
+  message("99.9% of true full sibs simulated to have logL > than ", format(q1000, digits=6))
+
+  
+  
+  # this makes a list of vectors that have the base-0 indices of the possible
+  # full sibs of each individual.
+  ret$HiLidx <- high_logl_pairs(FSP = as.vector(full_sibling_pair_gfreqs(ret$Gfreqs, mu)), 
+                           UPF = as.vector(unrelated_pair_gfreqs(ret$Gfreqs)), 
+                           G   = Vars$snp_genos$mat, 
+                           loglV = q1000)
+  
+  message("\nDone with all mcmc variable initialization at ", date())
+  
+  ret  # return that big list
 }
 
 

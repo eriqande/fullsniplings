@@ -184,6 +184,52 @@ full_sibling_pair_gfreqs <- function(gf, mu=0) {
 
 
 
+#' for each individual, find the other individuals with a sib-pair log likelihood exceeding a certain amount
+#' 
+#' DEPRECATED.  I keep this around to remind me how slow R is.  It is better
+#' to use high_logl_pairs(), implemented in Rcpp, in practice.
+#' @param FSP full-sibling pair geno freqs as returned by full_sibling_pair_gfreqs()
+#' @param UPF unrelated pair geno freqs as would be returned by unrelated_pair_gfreqs()
+#' @param GI  genotypes of all the individuals as a snp_indics array
+#' @param loglV  the log-likelihood value that must be exceeded to be included
+#' @export
+find_high_logl_sib_pairs <- function(FSP, UPF, GI, loglV) {
+  # have this while developing
+  # FSP <- full_sibling_pair_gfreqs(ret$Gfreqs, mu=0.005)  
+  # UPF <- unrelated_pair_gfreqs(gf = ret$Gfreqs)
+  # GI <- Vars$snp_indics
+  # loglV <- -5.0
+  
+  L <- dim(GI)[2]
+  N <- dim(GI)[3]
+  
+  # make an array in which each column is the genotype indicators at all loci of one individual'
+  # replicated at each locus three times (as if they were individual 1 in FSP)
+  v <- matrix(GI, nrow=3)
+  g1 <- matrix(rbind(v,v,v), ncol=N)
+  
+  # now we make an array that is replicated at each element 3 times, as would be individual 2's
+  # genotype indicator
+  g2 <- matrix(rep(GI, each=3), ncol=N)
+  
+  # here are the logs of the full sibling probs and the unrelated pair probs
+  logFSP <- as.vector(log(FSP))
+  logUPF <- as.vector(log(UPF))
+  g2 <- as.vector(g2)  # we are only going to use this as a vector, ever.
+  
+  boing <- lapply(1:N, function(i) {
+    gg <- g1[,i] * g2
+    pp <- colSums(matrix(gg * logFSP, ncol=N), na.rm=T) -
+      colSums(matrix(gg * logUPF, ncol=N), na.rm=T)
+    w <- which(pp>loglV)
+    w <- w[w != i]  # drop the pair between i and himself!
+#    list(idx = w-1, vals = pp[w])  # return the base-0 indices of the fish that are not clearly non-siblings.
+    w-1  # I don't need to carry around all the values.
+  })
+  
+  
+  
+}
 
 
 

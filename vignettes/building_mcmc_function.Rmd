@@ -21,7 +21,8 @@ Note that to get this to really be a vignette, I must insert this at the top:
 ```
 
 ```{r}
-#library(fullsniplings)
+library(fullsniplings)
+library(microbenchmark)
 ```
 
 ## Overview of what this function looks like

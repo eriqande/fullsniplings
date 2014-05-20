@@ -110,7 +110,7 @@ NumericVector C_full_sibling_pair_gfreqs(int L, int G, NumericVector PP, Numeric
           for(b=0; b<G; b++) { // over second parent geno
             for(t1=0; t1<G; t1++) { // over sibling 1's true genotype
               for(t2=0; t2<G; t2++) { // over sibling 2's true genotype
-                acc += pp(a, b, l) * tp(a, b, t1) * tp(a, b, t2) * ge(t1, o1, l) * ge(t1, o1, l) * ge(t2, o2, l);
+                acc += pp(a, b, l) * tp(a, b, t1) * tp(a, b, t2) * ge(t1, o1, l) * ge(t2, o2, l);
               }
             }
           }
@@ -328,6 +328,8 @@ void update_marriage_node_kid_prongs_in_place(List S, NumericMatrix MP, NumericM
 
 
 
+//' Does something
+//' @export
 // [[Rcpp::export]]
 NumericVector kid_prongs_times_ind_likelihoods(List S, NumericVector IndGenoLik, NumericMatrix KidProngs) {
   List tmp;
@@ -356,6 +358,8 @@ NumericVector kid_prongs_times_ind_likelihoods(List S, NumericVector IndGenoLik,
 }
 
 
+//' must fill in later
+//' @export
 // [[Rcpp::export]]
 List gibbs_update_one_indiv_in_place( List FSL,
                                       IntegerVector IFS,        
@@ -406,4 +410,74 @@ List gibbs_update_one_indiv_in_place( List FSL,
     
     return(ret);
 }
+
+
+
+
+//' return the high-sib-pair-logl indivs for each indiv
+//' 
+//' I wrote this to see how much faster I could implement the functionality of find_high_logl_sib_pairs
+//' using Rcpp.  find_high_logl_sib_pairs is painfully slow, and I think this should be much faster
+//' @param FSP a 9 x L matrix (3 x 3 x L) of expected genotype frequencies of a full sibling pair,
+//' but we pass it in is a vector.
+//' @param UPF a 9 x L matrix of expected genotype frequencies of an unrelated pair, which we also
+//' pass in as a vector.
+//' @param G an L x N matrix of 0, 1, or 2 or NA giving the genotypes of the individuals 
+//' @param loglV the cutoff point above which you will accept the pairs.
+//' @export
+// [[Rcpp::export]]
+List high_logl_pairs(NumericVector FSP, NumericVector UPF, IntegerMatrix G, double loglV) {
+
+  int N = G.ncol();  // number of individuals
+  int L = G.nrow();  // number of loci
+  NumericVector logFSP = log(FSP);  // we can just log these and add
+  NumericVector logUPF = log(UPF);
+  List ret(N);  // for returning the values.  
+  NumericVector TMP(N); // for storing values or the loglRatio
+  double sum;
+  int n;
+  
+  // this is for picking out the elements of FSP and UPF
+  #define UF_(g1, g2, l)  g1 + (g2*3) + (9*l)
+
+  // cycle over everyone and do it
+  for(int a=0; a<N; a++) {
+    n = 0;
+    for(int b=0; b<N; b++) {
+      sum = 0.0;
+      for(int l=0; l<L; l++) {
+        if( !(IntegerVector::is_na(G(l, a))) && !(IntegerVector::is_na(G(l, b))) ) {  // if they aren't missing data
+          sum += logFSP[UF_(G(l, a), G(l, b), l)] - logUPF[UF_(G(l, a), G(l, b), l)];
+        }
+      }
+      TMP[b] = sum;
+      if(TMP[b] > loglV && b != a) n++;
+    }
+    // now, at this juncture, TMP has all the values for individual a compared to everyone and since n 
+    // tells us how many are > loglV, then make an output vector of  length n and
+    // copy stuff across.
+    IntegerVector reta(n);
+    n=0;
+    for(int b=0; b<N; b++) {
+      if(TMP[b] > loglV && b != a) reta[n++] = b; 
+    }
+    ret[a] = reta;
+  }
+  
+  return(ret);
+  #undef UF_
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
