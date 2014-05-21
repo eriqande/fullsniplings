@@ -6,6 +6,8 @@
 #' the MCMC sweep function.
 #' @param genos  The data frame of SNP genotypes
 #' @param mu  Genotyping error rates per locus (recycles as necessary)
+#' @return This returns a list with components that are documented as the parameters that 
+#' get passed to \link{\code{gibbs_update_one_indiv_in_place}}
 #' @export
 full_sib_mcmc_initialize <- function(genos, mu) {
   
@@ -59,8 +61,8 @@ full_sib_mcmc_initialize <- function(genos, mu) {
   
   
   # this makes a list of vectors that have the base-0 indices of the possible
-  # full sibs of each individual.
-  ret$HiLidx <- high_logl_pairs(FSP = as.vector(full_sibling_pair_gfreqs(ret$Gfreqs, mu)), 
+  # full sibs of each individual.  AFSL = Acceptable Full Sibling List
+  ret$AFSL <- high_logl_pairs(FSP = as.vector(full_sibling_pair_gfreqs(ret$Gfreqs, mu)), 
                            UPF = as.vector(unrelated_pair_gfreqs(ret$Gfreqs)), 
                            G   = Vars$snp_genos$mat, 
                            loglV = q1000)

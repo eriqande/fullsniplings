@@ -328,21 +328,26 @@ void update_marriage_node_kid_prongs_in_place(List S, NumericMatrix MP, NumericM
 
 
 
-//' Does something
+//' Computes the posterior predictive likelihoods that an individual with likelihood vector IndGenoLik belongs to each sibling group in AFS
+//' 
+//' Note that we have to pass in the whole full sibling list (FSL) so that we can get the LMMI_Idx for each sibling group.
+//' @param IndGenoLik Likelihoods of the focal individual.  There will be 3*L elements in that.  Note that \code{AFS} is the acceptable
+//' sibling list for this focal individual.
 //' @export
 // [[Rcpp::export]]
-NumericVector kid_prongs_times_ind_likelihoods(List S, NumericVector IndGenoLik, NumericMatrix KidProngs) {
+NumericVector kid_prongs_times_ind_likelihoods(List FSL, NumericVector IndGenoLik, NumericMatrix KidProngs, IntegerVector AFS) {
   List tmp;
-  NumericVector ret(S.length());
+  int n = AFS.length();  // the number of sibgroups in AFS
+  NumericVector ret(n);  
   int fsp;
   double prod = 1.0;
   int j,k;
   int nL = IndGenoLik.length() / 3; 
   double sum;
   
-  for(int i=0; i<S.length(); i++) {  // cycle over elements of S
-    tmp = S[i];
-    int fsp = as<int>(tmp["LMMI_Idx"]);
+  for(int i=0; i<n; i++) {  // cycle over the acceptable sibling groups (elements in AFS)
+    tmp = FSL[AFS[i]];  // for each sibgroup, we need to ge its LMMI_Idx
+    int fsp = as<int>(tmp["LMMI_Idx"]);  // this is its column in the KidProngs matrix
     prod = 1.0;  // prepare to accumulate a product
     
     for(j=0; j<nL; j++) {
@@ -358,7 +363,131 @@ NumericVector kid_prongs_times_ind_likelihoods(List S, NumericVector IndGenoLik,
 }
 
 
-//' must fill in later
+
+
+
+//' return a vector of indices of sibships that include at least one hi-sibship-lod individual
+//' 
+//' Note that it is currently up to the user to ensure that no element of AFS exceeds the length-1
+//' of IFS
+//' 
+//' @param IFS the individual full siblings group vector. A vector such that element i contains the 
+//' base-0 index of the sibship to which the individual with index i belongs.
+//' @param AFS the vector of individual indexes (base 0) that have hi sibship lod with the 
+//' focal individual.  i.e. AFS = the Acceptable Full Siblings
+//' @export
+//' @examples
+//' possible_sibgroups(rep(16,50), 0:49)
+//' possible_sibgroups(rep(0:9, each=3), sample(0:29, 10))
+// [[Rcpp::export]]
+IntegerVector possible_sibgroups(IntegerVector IFS, IntegerVector AFS) {
+  int n = AFS.length();
+  IntegerVector sg(n);  // to store sibgroup indices
+  
+  for(int i=0; i<n; i++) {
+    sg[i] = IFS[AFS[i]];
+  }
+  
+  return(sort_unique(sg));  // return each sibgroup just once
+}
+
+
+
+
+//' compute the pseudo-prior for individual and individual pulled out of sibgroup IndG
+//' 
+//' @param FSL the full sibling list
+//' @param IndG The full sibling group to which the focal individual belongs
+//' @param AFS acceptable full sibling groups for the focal individual.
+//' @return This returns a list of two components. $solo is the prob that the individual will form a singleton and 
+//' $afs is the prior that the individual will join any of the existing sibgroups in afs, scaled to sum to one.
+//' @export
+// [[Rcpp::export]]
+List pseudo_prior(List FSL, int IndG, IntegerVector AFS) {
+  List ret(2);
+  int fn = FSL.length();
+  int n = AFS.length();
+  IntegerVector counts(fn);
+  int NumOnes = 0;
+  int Tot = 0;
+  
+  
+  for(int i=0; i<fn; i++) {
+    List tmp = FSL[i];
+    IntegerVector Indivs = tmp["Indivs"];
+    counts[i] = Indivs.length();
+    if(i == IndG) counts[i] -= 1;  // remove him from his own sibgroup
+    if(counts[i] == 1) NumOnes++;
+    Tot += counts[i];
+  }
+  ret[0] = counts;
+  ret[1] = NumOnes;
+  
+  NumericVector res(n);
+  double sum = 0.0;
+  for(int i=0; i<n; i++) {
+    res[i] = counts[AFS[i]];
+    sum += res[i];
+  }
+  for(int i=0; i<n; i++) {
+    res[i] /= sum;
+  }
+  
+  double solo_prob = (NumOnes * 1.0)/Tot;
+  if(solo_prob > .995) solo_prob = .995;  // a quick hack to deal with the starting situation when everyone is a singleton.
+  
+  
+  return List::create(_["solo"] = solo_prob, _["afs"] = res);
+}
+
+
+
+
+//' compute the posterior of Inds genotype given the genotype freqs in the pop
+//' 
+//' @param Gfreqs  array of genotype frequencies
+//' @param Liks  array of likleihoods (3 * L in length)
+//' @export
+// [[Rcpp::export]]
+double geno_post_c(NumericVector Gfreqs, NumericVector Liks) {
+  int n = Liks.length();
+  int L = n/3;
+  double sum;
+  double prod = 1.0;
+  
+ 
+  for(int i=0; i<L; i++) {
+    sum=0.0;
+    for(int j=0; j<3; j++) {
+      sum += Gfreqs[i*3 + j] * Liks[i*3 + j];
+    }
+    prod *= sum;
+  }
+  return prod;
+}
+
+
+//' does a gibbs update of the full sibling group of individual Ind
+//' @param FSL list of integer vectors. Each component is a list of two componontes: \code{LMMI_Idx} = the index of the sibgroup
+//' in LMMI (see below).  It also is the column that Ind's current full sib group occuppies in LMMFS
+//' @param IFS individual full siblings group vector. A vector such that element i contains the 
+//' base-0 index of the sibship to which the individual with index i belongs.
+//' and PMMFS, and KidProngs \code{Indivs} = the the base-0 indices of individuals in the full sibship.
+//' @param LMMI Likelihood matrix of marriages given individuals.
+//' @param LMMFS Likelihood matrix of marriages given full sibships.
+//' @param PMMFS Posterior matrix of marriages given full sibships.
+//' @param KidProngs Posterior predictives for the next individuals to be sampled from a full sibship.
+//' @param Pile  An integer vector that we will use as a stack to hold the indices of empty marriage columns that 
+//' can be renewed.
+//' @param AFSL The acceptable full siblings list.  Component i is a vector of the base-0 indices of the individuals
+//' that indiv i has high full-sibling LOD with.
+//' @param Gfreqs  The genotype frequencies.
+//' @param UPG Unrelated Pair Genotype Frequencies.
+//' @param TP Transmission probabilities
+//' @param IndLiks  Individual likelihoods
+//' @param Ind the index of the individual to be updated.  
+//' 
+//' 
 //' @export
 // [[Rcpp::export]]
 List gibbs_update_one_indiv_in_place( List FSL,
@@ -367,46 +496,91 @@ List gibbs_update_one_indiv_in_place( List FSL,
                                       NumericMatrix LMMFS,      
                                       NumericMatrix PMMFS,      
                                       NumericMatrix KidProngs,  
-                                      IntegerVector Pile,       
+                                      IntegerVector Pile,  
+                                      List AFSL,
                                       NumericMatrix Gfreqs,     
                                       NumericMatrix UPG,        
                                       NumericVector TP,         
                                       NumericMatrix IndLiks,    
                                       int Ind                   
                                       ) {
-    int fs = IFS[Ind];
-    List tmp = FSL[fs];
+                                    
+  RNGScope Scope;  // Initialize random number generator.
+
+  int fs = IFS[Ind];   // index of the full sib group that Ind currently belongs to
+    List tmp = FSL[fs];  
     int fsp = tmp["LMMI_Idx"];  // this is the column that Ind's current full sib group occuppies in LMMFS
                                 // and PMMFS, and KidProngs
     IntegerVector current_sibs = tmp["Indivs"];  // everyone in Ind's current sibgroup (including himself)
-    int n = current_sibs.length();
-    List ret(5);
+    int n = current_sibs.length();  // how many individuals in the full sibgroup that Ind belongs to
+    List ret(10);  // I am making this here just to output stuff while testing.
+    
+    // Get the sibships that we would consider adding this individual into:
+    // ASG = Acceptable Sibling Groups
+    IntegerVector AFS = possible_sibgroups(IFS, AFSL[Ind]);  // note that this will not include the individual's current sibling group if he is the only one in it.
+    
                                 
-    // now make some copies of what it looked like before the update (easier to go back to this)                            
+    // now make some copies of what it looked like before the update, because if we just leave the individual
+    // in the same full sibling group, it will be easy to just put these values back where they belong.
     NumericVector LMMFS_orig_col = LMMFS( _, fsp);
     NumericVector PMMFS_orig_col = PMMFS( _, fsp);
     NumericVector KidProngs_orig_col = KidProngs( _, fsp);
     
-    if(n==1) {  // if Ind is the only one in his current sibgroup, then use that sibgroup to see if he 
-                // wants to be a solo sib-group still.
-      KidProngs( _, fsp) = Gfreqs; 
+    // divide out his likelihood contribution to the 
+    // the LMMFS and recompute PMMFS and KidProngs for his current sibship
+    LMMFS( _, fsp) = LMMFS( _, fsp) / LMMI( _, Ind);
+    update_marriage_posteriors_in_place(FSL, LMMFS, PMMFS, UPG, 9, fs);
+    update_marriage_node_kid_prongs_in_place(FSL, PMMFS, LMMI, 9, 3, TP, fs);
+  
+  
+  
+    // now, we can zoom over all the KidProngs for sibling groups that are part of his Acceptable Sibling Groups 
+    //and compute the full conditional likelihood of Ind belonging to each. 
+    NumericVector FCLs = kid_prongs_times_ind_likelihoods(FSL, IndLiks( _, Ind), KidProngs, AFS);
+    
+    // here is the individual's genotype likelihood given that he is a singleton:
+    double solo_lik = geno_post_c(Gfreqs, IndLiks( _, Ind));
+    
+    // here is what we need from our simple pseudo_prior
+    List PseudoPri = pseudo_prior(FSL, IFS[Ind], AFS);
+    
+    // Now we have all the necessary ingredients to compute the full conditional.
+    NumericVector PriTimesLik = as<NumericVector>(PseudoPri["afs"]) * FCLs;
+    double normo = sum(PriTimesLik);
+    double solo_pri = as<double>(PseudoPri["solo"]);
+    
+    double solo_prob = (solo_pri * solo_lik) /  ( (solo_pri * solo_lik) + ((1.0 - solo_pri) * normo) );
+    
+    
+    if(R::runif(0, 1) < solo_prob) {
+      ret[5] = "Solo";   // Here we need to fill in what we do when we make their own sibship
     }
-    else if(n>1) { // if there are others in his sibgroup, divide out his likelihood contribution to the 
-                   // the LMMFS and recompute PMMFS and KidProngs
-       LMMFS( _, fsp) = LMMFS( _, fsp) / LMMI( _, Ind);
-       update_marriage_posteriors_in_place(FSL, LMMFS, PMMFS, UPG, 9, fs);
-       update_marriage_node_kid_prongs_in_place(FSL, PMMFS, LMMI, 9, 3, TP, fs);
-    }
-    else  {
-      ; // need to throw an error here.
+    else {
+      ret[5] = "Siblio";   // Here we need to fill in what we do when we add them to an existing sibship
+      NumericVector probs = PriTimesLik / normo;
+      double val = R::runif(0,1);  // the random value
+      double sum = 0.0;
+      int pn = probs.length();
+      int idx;
+      for(int i=0; i<pn; i++) {
+        sum += probs[i];
+        if(sum >= val) {
+          idx = i;
+          break;
+        }
+      }
+      ret[6] = idx;
+      ret[7] = probs;
+      
     }
     
     
-    // now, we can zoom over all the KidProngs and compute the full conditional likelihood of 
-    // Ind belonging to each. 
-    NumericVector FCLs = kid_prongs_times_ind_likelihoods(FSL, IndLiks( _, Ind), KidProngs);
+    ret[0] = solo_pri;
+    ret[1] = solo_lik;
+    ret[2] = normo;
+    ret[3] = solo_prob;
+    ret[4] = normo;
     
-    ret[0] = FCLs;
     
     return(ret);
 }
@@ -467,9 +641,6 @@ List high_logl_pairs(NumericVector FSP, NumericVector UPF, IntegerMatrix G, doub
   return(ret);
   #undef UF_
 }
-
-
-
 
 
 

@@ -10,6 +10,10 @@ full_sib_mcmc_initialize(genos, mu)
 
 \item{mu}{Genotyping error rates per locus (recycles as necessary)}
 }
+\value{
+This returns a list with components that are documented as the parameters that
+get passed to \link{\code{gibbs_update_one_indiv_in_place}}
+}
 \description{
 This returns everything in a named list suitable for do.calling
 the MCMC sweep function.
