@@ -26,7 +26,7 @@ which is just a matrix underneath with G x G x L rows and N columns.}
 will be accessed and used to update ML.}
 }
 \value{
-This doesn't return anything.  It modifies ML in place via call be reference.  Our
+This doesn't return anything.  It modifies ML in place via call by reference.  Our
 goal here is to make updates without copying a lot of memory.
 }
 \description{

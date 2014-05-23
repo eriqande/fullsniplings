@@ -22,7 +22,7 @@ full_sib_mcmc_initialize <- function(genos, mu) {
   ret$FSL <- initialize_sib_list_to_singletons( ncol(Vars$geno_liks) )
   
   # from that list, make the "Individuals' full sibling groups" vector
-  ret$IFS <- make_IFS_from_FSL(ret$FSL, ncol(Vars$geno_liks))
+  ret$IFS <- as.integer(make_IFS_from_FSL(ret$FSL, ncol(Vars$geno_liks)))
   
   # set the LMMI to be Vars$pk_marriage_liks (just to keep notation consistent with my notebook notes)
   ret$LMMI <- Vars$pk_marriage_liks
@@ -37,7 +37,10 @@ full_sib_mcmc_initialize <- function(genos, mu) {
   ret$KidProngs <- make_KidProngs_from_FSL_and_PMMFS(ret$FSL, ret$PMMFS)
   
   # this is just an integer vector that will be a stack we push empty entries onto and off of
-  ret$Pile <- integer(length(ret$IFS))
+  ret$Pile <- integer(0)  # length(ret$IFS))
+  
+  # same with this
+  ret$MatPile <- integer(0)
   
   # these are just the genotype frequencies
   ret$Gfreqs <- gfreqs_from_afreqs(Vars$afreqs) 

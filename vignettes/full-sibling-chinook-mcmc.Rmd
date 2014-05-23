@@ -56,14 +56,11 @@ Once that is done, then it is time to modify, update, and improve `gibbs_update_
 Here is a simple thing to do to call the function:
 ```{r}
 cc <- chinook_chain
-gibbs_update_one_indiv_in_place(FSL = cc$FSL, IFS = cc$IFS, LMMI = cc$LMMI, LMMFS = cc$LMMFS, PMMFS = cc$PMMFS, KidProngs = cc$KidProngs, Pile = cc$Pile, AFSL = cc$AFSL, Gfreqs = cc$Gfreqs, UPG = cc$UPG, TP = cc$TP, IndLiks = cc$IndLiks, Ind = 0)
+for(i in 0:1156) {
+grab <- gibbs_update_one_indiv_in_place(FSL = cc$FSL, IFS = cc$IFS, LMMI = cc$LMMI, LMMFS = cc$LMMFS, PMMFS = cc$PMMFS, KidProngs = cc$KidProngs, Pile = cc$Pile, MatPile = cc$MatPile, AFSL = cc$AFSL, Gfreqs = cc$Gfreqs, UPG = cc$UPG, TP = cc$TP, IndLiks = cc$IndLiks, Ind = i)
+cc$Pile = grab[[8]]
+cc$MatPile = grab[[9]]
+}
+table(sapply(cc$FSL, function(x) length(x$Indiv)))
 ```
 
-Here is a scrap that I might want to look at for figuring out how to reinsert stuff at some point.:
-
-    if(n==1) {  // if Ind is the only one in his current sibgroup, then use that sibgroup to see if he 
-                // wants to be a solo sib-group still.
-      KidProngs( _, fsp) = Gfreqs; 
-    }
-    else if(n>1) {
-    

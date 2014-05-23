@@ -228,9 +228,9 @@ void update_marriage_likelihoods_in_place(List S, NumericMatrix PK, NumericMatri
 //' @param Pri  the join prior probbabilities of the parent pair
 //' @param NGS Number of genotypic states.  For pairs of parents, for example, this will be 9. 
 //' @param bz_idx An integer vector holding the BASE-0 indices of the components of S that 
-//' will be accessed and used to update ML.
+//' will be accessed and used to update MP.
 //' 
-//' @return This doesn't return anything.  It modifies ML in place via call be reference.  Our
+//' @return This doesn't return anything.  It modifies MP in place via call by reference.  Our
 //' goal here is to make updates without copying a lot of memory.
 //' @export
 // [[Rcpp::export]]
@@ -477,7 +477,10 @@ double geno_post_c(NumericVector Gfreqs, NumericVector Liks) {
 //' @param LMMFS Likelihood matrix of marriages given full sibships.
 //' @param PMMFS Posterior matrix of marriages given full sibships.
 //' @param KidProngs Posterior predictives for the next individuals to be sampled from a full sibship.
-//' @param Pile  An integer vector that we will use as a stack to hold the indices of empty marriage columns that 
+//' @param Pile  An integer vector that we will use as a stack to hold the indices of empty FSL list elements
+//' that we can put newly formed sibships into
+//' @param MatPile An integer vector that is parallel to Pile that holds the corresponding column of LMMFS that 
+//' go along with the elements of Pile. 
 //' can be renewed.
 //' @param AFSL The acceptable full siblings list.  Component i is a vector of the base-0 indices of the individuals
 //' that indiv i has high full-sibling LOD with.
@@ -496,7 +499,8 @@ List gibbs_update_one_indiv_in_place( List FSL,
                                       NumericMatrix LMMFS,      
                                       NumericMatrix PMMFS,      
                                       NumericMatrix KidProngs,  
-                                      IntegerVector Pile,  
+                                      std::vector<int> Pile, 
+                                      std::vector<int> MatPile,
                                       List AFSL,
                                       NumericMatrix Gfreqs,     
                                       NumericMatrix UPG,        
@@ -504,22 +508,50 @@ List gibbs_update_one_indiv_in_place( List FSL,
                                       NumericMatrix IndLiks,    
                                       int Ind                   
                                       ) {
-                                    
+  
+  // right at the top, we create a list to return values so we can see how things are progressing while developing this
+  List ret = List::create(
+      _["Ind"] = Ind,
+      _["fs"] = NA_INTEGER,
+      _["fsp"] = NA_INTEGER,
+      _["IFS_start"] = IntegerVector::create(NA_INTEGER),
+      _["IFS_end"] = IntegerVector::create(NA_INTEGER),
+      _["Pile"] = IntegerVector::create(NA_INTEGER),
+      _["MatPile"] = IntegerVector::create(NA_INTEGER),
+      _["FSL_start"] = clone(FSL),
+      _["FSL_end"] = List(1),
+      _["AFS"] = IntegerVector::create(NA_INTEGER),
+      _["LMMFS_orig"] = NumericVector::create(NA_REAL),
+      _["LMMFS_test"] = NumericVector::create(NA_REAL),
+      _["PMMFS_orig"] = NumericVector::create(NA_REAL),
+      _["PMMFS_test"] = NumericVector::create(NA_REAL),
+      _["KidProngs_orig"] = NumericVector::create(NA_REAL),
+      _["KidProngs_test"] = NumericVector::create(NA_REAL),
+      _["FCLs"] = NA_REAL,
+      _["solo_lik"] = NA_REAL
+    );
+    
+  
   RNGScope Scope;  // Initialize random number generator.
-
-  int fs = IFS[Ind];   // index of the full sib group that Ind currently belongs to
+  
+  
+ret["IFS_start"] = clone(IFS);
+    int fs = IFS[Ind];   // index of the full sib group that Ind currently belongs to
+ret["fs"] = fs;
     List tmp = FSL[fs];  
-    int fsp = tmp["LMMI_Idx"];  // this is the column that Ind's current full sib group occuppies in LMMFS
+    int fsp = as<int>(tmp["LMMI_Idx"]);  // this is the column that Ind's current full sib group occuppies in LMMFS
                                 // and PMMFS, and KidProngs
+ret["fsp"] = fsp;
     IntegerVector current_sibs = tmp["Indivs"];  // everyone in Ind's current sibgroup (including himself)
     int n = current_sibs.length();  // how many individuals in the full sibgroup that Ind belongs to
-    List ret(10);  // I am making this here just to output stuff while testing.
-    
+    int New_fs;  // for storing the index of the new sibship and individual will be put into
+    int New_fsp; // for storing the column of the LMMFS matrix that a new sibship will use.  
     // Get the sibships that we would consider adding this individual into:
     // ASG = Acceptable Sibling Groups
     IntegerVector AFS = possible_sibgroups(IFS, AFSL[Ind]);  // note that this will not include the individual's current sibling group if he is the only one in it.
+ret["AFS"] = clone(AFS);   
     
-                                
+    
     // now make some copies of what it looked like before the update, because if we just leave the individual
     // in the same full sibling group, it will be easy to just put these values back where they belong.
     NumericVector LMMFS_orig_col = LMMFS( _, fsp);
@@ -530,16 +562,27 @@ List gibbs_update_one_indiv_in_place( List FSL,
     // the LMMFS and recompute PMMFS and KidProngs for his current sibship
     LMMFS( _, fsp) = LMMFS( _, fsp) / LMMI( _, Ind);
     update_marriage_posteriors_in_place(FSL, LMMFS, PMMFS, UPG, 9, fs);
-    update_marriage_node_kid_prongs_in_place(FSL, PMMFS, LMMI, 9, 3, TP, fs);
+    update_marriage_node_kid_prongs_in_place(FSL, PMMFS, KidProngs, 9, 3, TP, fs);
   
-  
-  
+ ret["LMMFS_orig"] =  LMMFS_orig_col;
+ ret["LMMFS_test"] =  LMMFS( _, fsp);
+ 
+ ret["PMMFS_orig"] =  PMMFS_orig_col;
+ ret["PMMFS_test"] =  PMMFS( _, fsp);
+ 
+ ret["KidProngs_orig"] =  KidProngs_orig_col;
+ ret["KidProngs_test"] =  KidProngs( _, fsp);
+
     // now, we can zoom over all the KidProngs for sibling groups that are part of his Acceptable Sibling Groups 
     //and compute the full conditional likelihood of Ind belonging to each. 
     NumericVector FCLs = kid_prongs_times_ind_likelihoods(FSL, IndLiks( _, Ind), KidProngs, AFS);
-    
+
+ret["FCLs"] = FCLs;
+
     // here is the individual's genotype likelihood given that he is a singleton:
     double solo_lik = geno_post_c(Gfreqs, IndLiks( _, Ind));
+    
+ret["solo_lik"] = solo_lik;
     
     // here is what we need from our simple pseudo_prior
     List PseudoPri = pseudo_prior(FSL, IFS[Ind], AFS);
@@ -553,15 +596,52 @@ List gibbs_update_one_indiv_in_place( List FSL,
     
     
     if(R::runif(0, 1) < solo_prob) {
-      ret[5] = "Solo";   // Here we need to fill in what we do when we make their own sibship
+ //     ret[6] = "Solo";   // Here we need to fill in what we do when we make their own sibship
+      if(n==1) {  // if he was in a singleton sibship to begin with, just put him back there.
+        // since we never moved him out of the FSL, we just put the probs back correctly.
+        LMMFS( _, fsp) = LMMFS_orig_col;
+        PMMFS( _, fsp) = PMMFS_orig_col;
+        KidProngs( _, fsp) = KidProngs_orig_col;
+        New_fs = fs;
+        New_fsp = fsp;
+      }
+      else {
+        New_fs = Pile.back();  // If he was not a singleton before, we have to grab a new slot for him from the Pile
+        Pile.pop_back();
+        New_fsp = MatPile.back();
+        MatPile.pop_back();
+        
+        // take him out of the old one
+        tmp = FSL[fs];
+        IntegerVector xx = as<IntegerVector>(tmp["Indivs"]);
+        int xxl = xx.length();
+        IntegerVector tmp3(xxl - 1); // length of new vector
+        int j=0;
+        for(int i=0; i<xxl; i++) {
+          if(xx[i] != Ind) tmp3[j++] = xx[i];
+        }
+        tmp["Indivs"] = tmp3;
+        
+        // then put him into the FSL
+        tmp = FSL[New_fs];
+        tmp["Indivs"] = NumericVector::create(Ind);
+        tmp["LMMI_Idx"] = New_fsp;
+        // Then recalculate the probs and things
+        LMMFS( _, fsp) = LMMI( _, Ind);
+        update_marriage_posteriors_in_place(FSL, LMMFS, PMMFS, UPG, 9, New_fs);
+        update_marriage_node_kid_prongs_in_place(FSL, PMMFS, KidProngs, 9, 3, TP, New_fs);
+        
+        // And don't forget to update his IFS entry:
+        IFS[Ind] = New_fs;
+      }
     }
-    else {
-      ret[5] = "Siblio";   // Here we need to fill in what we do when we add them to an existing sibship
+    else {  // Put Ind into an existing sibship and put his old one on the Pile if n==1
+  //    ret[6] = "Siblio";   
       NumericVector probs = PriTimesLik / normo;
       double val = R::runif(0,1);  // the random value
       double sum = 0.0;
       int pn = probs.length();
-      int idx;
+      int idx = -1;
       for(int i=0; i<pn; i++) {
         sum += probs[i];
         if(sum >= val) {
@@ -569,19 +649,74 @@ List gibbs_update_one_indiv_in_place( List FSL,
           break;
         }
       }
-      ret[6] = idx;
-      ret[7] = probs;
       
+      // so, now, AFS[idx] holds the index of the full sibgroup we will assign this guy to, and we might
+      New_fs = AFS[idx];
+
+
+      // now we can deal with recomputing the likelihoods, etc., as need be:
+      if(New_fs == fs) { // in this case there was no change and we just copy the values back
+        LMMFS( _, fsp) = LMMFS_orig_col;
+        PMMFS( _, fsp) = PMMFS_orig_col;
+        KidProngs( _, fsp) = KidProngs_orig_col;
+      }
+      else {  // otherwise there was a change to a new sibgroup.  So, we need to compute the new LMMFS, etc.
+            // Note that we already removed him from the likelihood of his previous sibship.
+        // First remove him from the old sibship in FSL
+        tmp = FSL[fs];
+        IntegerVector xx = as<IntegerVector>(tmp["Indivs"]);
+        int xxl = xx.length();
+        IntegerVector tmp3(xxl - 1); // length of new vector
+        int j=0;
+        for(int i=0; i<xxl; i++) {
+          if(xx[i] != Ind) tmp3[j++] = xx[i];
+        }
+        tmp["Indivs"] = tmp3;
+        
+        // Then add him to the vector of Indivs in the new sibgroup
+        tmp = FSL[New_fs];
+        xx = as<IntegerVector>(tmp["Indivs"]);
+        xxl = xx.length();
+        IntegerVector tmp2(xxl + 1);  // length of the new vector
+        for(int i=0; i<xxl; i++) {
+          tmp2[i] = xx[i];
+        }
+        tmp2[xxl] = Ind;
+    //    ret[5] = tmp2;
+        tmp["Indivs"] = tmp2;
+        
+        // then update the probs
+        New_fsp = as<int>(tmp["LMMI_Idx"]);
+        LMMFS( _, New_fsp) = LMMFS( _, New_fsp) * LMMI( _, Ind);
+        update_marriage_posteriors_in_place(FSL, LMMFS, PMMFS, UPG, 9, New_fs);
+        update_marriage_node_kid_prongs_in_place(FSL, PMMFS, KidProngs, 9, 3, TP, New_fs);
+        
+        // And don't forget to update his IFS entry:
+        IFS[Ind] = New_fs;
+        
+        // finally, down here, if n==1, toss his old sibship onto the pile
+        if(n==1) {
+          Pile.push_back(fs);
+          MatPile.push_back(fsp);
+        }
+      }
     }
     
     
-    ret[0] = solo_pri;
-    ret[1] = solo_lik;
-    ret[2] = normo;
-    ret[3] = solo_prob;
-    ret[4] = normo;
-    
-    
+/*    ret[0] = IFS;
+    ret[1] = fs;
+    ret[2] = fsp;
+    ret[3] = New_fs;
+    ret[4] = New_fsp;
+    ret[7] = Pile;
+    ret[8] = MatPile;
+    ret[9] = PMMFS;
+*/
+    ret["Pile"] = Pile;
+    ret["MatPile"] = MatPile;
+    ret["IFS_end"] = IFS;
+    ret["FSL_end"] = FSL;
+     
     return(ret);
 }
 

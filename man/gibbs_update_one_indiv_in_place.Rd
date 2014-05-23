@@ -4,7 +4,7 @@
 \title{does a gibbs update of the full sibling group of individual Ind}
 \usage{
 gibbs_update_one_indiv_in_place(FSL, IFS, LMMI, LMMFS, PMMFS, KidProngs, Pile,
-  AFSL, Gfreqs, UPG, TP, IndLiks, Ind)
+  MatPile, AFSL, Gfreqs, UPG, TP, IndLiks, Ind)
 }
 \arguments{
 \item{FSL}{list of integer vectors. Each component is a list of two componontes: \code{LMMI_Idx} = the index of the sibgroup
@@ -22,7 +22,11 @@ and PMMFS, and KidProngs \code{Indivs} = the the base-0 indices of individuals i
 
 \item{KidProngs}{Posterior predictives for the next individuals to be sampled from a full sibship.}
 
-\item{Pile}{An integer vector that we will use as a stack to hold the indices of empty marriage columns that
+\item{Pile}{An integer vector that we will use as a stack to hold the indices of empty FSL list elements
+that we can put newly formed sibships into}
+
+\item{MatPile}{An integer vector that is parallel to Pile that holds the corresponding column of LMMFS that
+go along with the elements of Pile.
 can be renewed.}
 
 \item{AFSL}{The acceptable full siblings list.  Component i is a vector of the base-0 indices of the individuals
