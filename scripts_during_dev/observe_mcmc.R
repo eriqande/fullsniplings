@@ -72,6 +72,15 @@ ordered_fsl <- function(S) {
 }
 
 
+# this function returns a vector of strings naming the current sibships, like 
+# 10-34-67-98, which can be used to hash them
+hashable_sibships <- function(S) {
+  osibs <- ordered_fsl(S)   # ordered sibgroups
+  osibs <- osibs[sapply(osibs, length)>0]  # drop the empty ones
+  sapply(osibs, function(x) paste(x, collapse="-"))
+}
+
+
 # also, before starting, it will be nice to make a list for every individual with the base-0 subscripts of the other
 # individuals in his full sibling group:
 ped <- fs_dev_test_data$chinook_full_sibs_pedigree
@@ -81,6 +90,10 @@ kid.split <- split(ped$kididx, paste(ped$Pa, "---", ped$Ma, sep=""))
 
 # here we get a list of all the sibling groups
 sibgroups <- unname(kid.split[order(sapply(kid.split, length), decreasing=T)])
+
+# and here we can store them as strings:
+true_sibgroups_as_strings <- sapply(sibgroups, function(x) paste(x, collapse="-"))
+
 
 # now get a list of the siblings of an individual
 sg.list <- vector("list", length = nrow(ped))
@@ -114,8 +127,9 @@ afs_check[ (afs_check[,1] - afs_check[,2]) != 0, ]  # Far out.  We aren't missin
 
 
 # here is the basic way we run this:
+if(FALSE) {
 set.seed(5)
-i <- 941
+i <- 248
 grab <- do.call(what = gibbs_update_one_indiv_in_place, args = (c(cc, Ind=i)))
 cc$Pile <- grab$Pile  # currently these have to be copied back
 cc$MatPile <- grab$MatPile
@@ -124,7 +138,7 @@ cc$MatPile <- grab$MatPile
 summarize_results(grab)
 grab$solo_lik
 head(comp_liks_to_num_true_sibs(grab, sg.list), n=20)
-
+}
 
 
 
@@ -132,16 +146,55 @@ head(comp_liks_to_num_true_sibs(grab, sg.list), n=20)
 # here we can run it multiple times on a specific group of individuals:
 set.seed(5)
 #for(j in 1:40) {for(i in sibgroups[[1]]) {
-for(j in 1:30) {
+visited_sibgroups <- vector(mode = "integer")
+burn_in <- 50
+num_sweeps <- 100
+for(j in 1:(burn_in + num_sweeps)) {
   for(i in 0:(length(cc$IFS)-1)) {
     grab <- do.call(what = gibbs_update_one_indiv_in_place, args = (c(cc, Ind=i)))
     cc$Pile <- grab$Pile  # currently these have to be copied back
     cc$MatPile <- grab$MatPile
   }
   print(table_sibsizes(S = cc$FSL)$Table)
+  if(j>burn_in) {
+    sibstrs <- hashable_sibships(cc$FSL)
+    visited_sibgroups[sibstrs][is.na(visited_sibgroups[sibstrs])] <- 0  # set them to 0 if they were not visited previously
+    visited_sibgroups[sibstrs] <- visited_sibgroups[sibstrs] + 1
+  }
 }
 
-summarize_results(grab)
-grab$solo_lik
-comp_liks_to_num_true_sibs(grab, sg.list)
+
+
+# this is parallel to visited_sibgroups
+vis_sib_lengths <- sapply(strsplit(names(visited_sibgroups), "-"), length)
+names(vis_sib_lengths) <- names(visited_sibgroups)
+
+# extract all the true sibgroups from there and see how many times they were visited (or NA if they were not visited)
+visited_sibgroups[true_sibgroups_as_strings]
+
+# here we see how many of our 100% posterior sibships were correct
+names(visited_sibgroups)[visited_sibgroups==100] %in% true_sibgroups_as_strings
+
+# so, what would be really nice is a function that summarizes this and gives us the sizes
+# of the correct and the sizes of the incorrect sibships.  Hmmm...we should be able
+# to put all this into "long format" with a few columns.  Say:
+#   SibString(as rownames)   SibSize     Posterior     Correct    
+run_results <- data.frame(Posterior = visited_sibgroups)
+run_results$SibSize <- vis_sib_lengths
+run_results$Correct <- names(visited_sibgroups) %in% true_sibgroups_as_strings
+# and then order it by posterior and then size
+run_results <- run_results[order(run_results$Posterior, run_results$SibSize, decreasing=T), ]
+
+# now get the cumulative number of individuals placed into the correct sibships (and the wrong one)
+run_results$CusumCorrect <- cumsum(run_results$SibSize * run_results$Correct)
+run_results$CusumInCorrect <- cumsum(run_results$SibSize * run_results$Correct==FALSE)
+
+# Note! I really need to to something different for the above.  Maybe a greedy approach where I take every sibship
+# as I scan down the list, and store which individuals I have seen, and then don't accept any sibgroups containing
+# individuals I have already inferred to be in higher-posterior sibgroups.  
+
+# and I should also compute partition distances.
+
+# It is looking good though!
+
 
