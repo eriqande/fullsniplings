@@ -135,18 +135,20 @@ make_LMMFS_from_FSL_and_LMMI <- function(FSL, LMMI, allocateFromLMMI = TRUE) {
 #' @param af the vector of allele frequencies
 #' @export
 make_PMMFS_from_FSL_and_LMMFS <- function(FSL, LMMFS, af) {
-  ret <- LMMFS
+  ret <- LMMFS  # make a copy of this to overwrite it in the Cpp function
   ret[] <- 0.0
   
   UPG <- unrelated_pair_gfreqs(gfreqs_from_afreqs(af))  # this is our prior on parent genotypes in the simplest case
 
+  FSP <- sapply(FSL, function(x) x$LMMI_Idx)
+  
   update_marriage_posteriors_in_place(
         FSL, 
         LMMFS, 
         ret, 
         UPG, 
         9, 
-        0:(length(FSL)-1)
+        FSP
   )
   ret
 }

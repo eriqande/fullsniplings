@@ -3,36 +3,31 @@
 \alias{update_marriage_posteriors_in_place}
 \title{Calculate/update one row of a marriage Posterior matrix IN PLACE!}
 \usage{
-update_marriage_posteriors_in_place(S, ML, MP, Pri, NGS, bz_idx)
+update_marriage_posteriors_in_place(ML, MP, Pri, NGS, bz_idx)
 }
 \arguments{
-\item{S}{a list of lists each with two components.  The first is LMMI_Idx which is the base-0
-index of the Marriage that the component is referring to, and the second is Indivs which give
-the indices (base 0) of the individuals in the
-full sibling groups.}
-
-\item{PK}{per-kid marriage likelihoods.  This must be of class \code{\link{marriage_geno_lik_array}},
-which is just a matrix underneath with G x G x L rows and N columns.}
-
 \item{ML}{the marriage likelihoods matrix}
 
 \item{MP}{the marriage posteriors matrix that is to be updated}
 
-\item{Pri}{the join prior probbabilities of the parent pair}
+\item{Pri}{the joint prior probbabilities of the parent pair}
 
 \item{NGS}{Number of genotypic states.  For pairs of parents, for example, this will be 9.}
 
-\item{bz_idx}{An integer vector holding the BASE-0 indices of the components of S that
-will be accessed and used to update ML.}
+\item{bz_idx}{An integer vector holding the BASE-0 index of the columns of MP that needs updating.  Note that this
+is not the index of the sibhip, but rather the column that sibship occupies in MP.  That will be something like
+FSL[Indiv]$LMMI_Idx that}
 }
 \value{
-This doesn't return anything.  It modifies ML in place via call by reference.  Our
+This returns the value of the index of the last marriage that it updated.  It does this so I can check some things.  It modifies MP in place via call by reference.  Our
 goal here is to make updates without copying a lot of memory.
 }
 \description{
 The intended use of this is to update the marriage posteriors after an individual has
 been moved from one sibship to another.  So, for example, if you moved an individual
 from sibship 40 to sibship 291 (as subscripted in R) then you would want to run this
-with \code{bz_idx} equal to \code{c(39, 290)}, after you had updated the LMMFS.
+with \code{bz_idx} equal to the column of sibship 39, and then run it again with it equal
+to the column of  290, after you had updated the LMMFS
+for each of those.
 }
 

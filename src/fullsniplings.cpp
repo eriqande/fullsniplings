@@ -216,51 +216,62 @@ void update_marriage_likelihoods_in_place(List S, NumericMatrix PK, NumericMatri
 //' The intended use of this is to update the marriage posteriors after an individual has
 //' been moved from one sibship to another.  So, for example, if you moved an individual 
 //' from sibship 40 to sibship 291 (as subscripted in R) then you would want to run this
-//' with \code{bz_idx} equal to \code{c(39, 290)}, after you had updated the LMMFS.  
-//' @param S a list of lists each with two components.  The first is LMMI_Idx which is the base-0
-//' index of the Marriage that the component is referring to, and the second is Indivs which give
-//' the indices (base 0) of the individuals in the 
-//' full sibling groups.  
-//' @param PK per-kid marriage likelihoods.  This must be of class \code{\link{marriage_geno_lik_array}},
-//' which is just a matrix underneath with G x G x L rows and N columns.
+//' with \code{bz_idx} equal to the column of sibship 39, and then run it again with it equal 
+//' to the column of  290, after you had updated the LMMFS
+//' for each of those.
 //' @param ML the marriage likelihoods matrix
 //' @param MP the marriage posteriors matrix that is to be updated
-//' @param Pri  the join prior probbabilities of the parent pair
+//' @param Pri  the joint prior probbabilities of the parent pair
 //' @param NGS Number of genotypic states.  For pairs of parents, for example, this will be 9. 
-//' @param bz_idx An integer vector holding the BASE-0 indices of the components of S that 
-//' will be accessed and used to update MP.
+//' @param bz_idx An integer vector holding the BASE-0 index of the columns of MP that needs updating.  Note that this
+//' is not the index of the sibhip, but rather the column that sibship occupies in MP.  That will be something like 
+//' FSL[Indiv]$LMMI_Idx that 
 //' 
-//' @return This doesn't return anything.  It modifies MP in place via call by reference.  Our
+//' @return This returns the value of the index of the last marriage that it updated.  It does this so I can check some things.  It modifies MP in place via call by reference.  Our
 //' goal here is to make updates without copying a lot of memory.
 //' @export
 // [[Rcpp::export]]
-void update_marriage_posteriors_in_place(List S, NumericMatrix ML, NumericMatrix MP, NumericMatrix Pri, int NGS, IntegerVector bz_idx) {
+int update_marriage_posteriors_in_place(NumericMatrix ML, NumericMatrix MP, NumericMatrix Pri, int NGS, IntegerVector bz_idx) {
   int yl;
   IntegerVector y;
-  List tmp;
   int nL = ML.nrow() / NGS;  // this should be the number of loci
-  int j,k,rr;
+  int j,p;
   double sum;
   int marriage;
   
+  // in the #defines below, p is for the 9 parent-genotype states
+  #define MP_ MP[(NGS * nL * marriage) + (NGS * j)  +  p]
+  #define ML_ ML[(NGS * nL * marriage) + (NGS * j)  +  p]
+  #define Pri_ Pri[(NGS * j) + p]
+  
+  
   for(IntegerVector::iterator i = bz_idx.begin(); i != bz_idx.end(); ++i) {
-    tmp = S[*i];
-    marriage = as<int>(tmp["LMMI_Idx"]);
-    MP( _, marriage) = ML( _, marriage) * Pri;   // multiply it by the prior
+    marriage = *i;
+    
+    // create the MP values by multiplying ML by the Prior
+    for(j=0; j<nL; j++) {
+      for(p=0; p<NGS; p++) {
+        MP_ = ML_ * Pri_;
+      }
+    }
     
     // now we cycle over the loci and normalize the sums in each
     for(j=0; j<nL; j++) {
       sum = 0.0;
-      for(k=0; k<NGS; k++) {
-        rr = j * NGS + k;
-        sum += MP(rr, marriage);
+      for(p=0; p<NGS; p++) {
+        sum += MP_;
       }
-      for(k=0; k<NGS; k++) {
-        rr = j * NGS + k;
-        MP(rr, marriage) /= sum;
+      for(p=0; p<NGS; p++) {
+        MP_ /= sum;
       }
     }
   }
+  
+  #undef MP_
+  #undef ML_
+  #undef Pri_
+  
+  return(marriage);
 }
 
 
@@ -514,6 +525,7 @@ List gibbs_update_one_indiv_in_place( List FSL,
       _["Ind"] = Ind,
       _["fs"] = NA_INTEGER,
       _["fsp"] = NA_INTEGER,
+      _["fsp_vec"] = IntegerVector::create(NA_INTEGER),
       _["IFS_start"] = IntegerVector::create(NA_INTEGER),
       _["IFS_end"] = IntegerVector::create(NA_INTEGER),
       _["Pile"] = IntegerVector::create(NA_INTEGER),
@@ -528,7 +540,8 @@ List gibbs_update_one_indiv_in_place( List FSL,
       _["KidProngs_orig"] = NumericVector::create(NA_REAL),
       _["KidProngs_test"] = NumericVector::create(NA_REAL),
       _["FCLs"] = NA_REAL,
-      _["solo_lik"] = NA_REAL
+      _["solo_lik"] = NA_REAL,
+      _["MP_Update_Idx1"] = NA_INTEGER
     );
     
   
@@ -537,15 +550,20 @@ List gibbs_update_one_indiv_in_place( List FSL,
   
 ret["IFS_start"] = clone(IFS);
     int fs = IFS[Ind];   // index of the full sib group that Ind currently belongs to
+    IntegerVector fs_vec = IntegerVector::create(fs);
 ret["fs"] = fs;
     List tmp = FSL[fs];  
     int fsp = as<int>(tmp["LMMI_Idx"]);  // this is the column that Ind's current full sib group occuppies in LMMFS
                                 // and PMMFS, and KidProngs
+    IntegerVector fsp_vec = IntegerVector::create(fsp);  // this is messed up.  I need to do this to pass it to the functions that update MP's and KidProngs.
 ret["fsp"] = fsp;
+ret["fsp_vec"] = fsp_vec;
     IntegerVector current_sibs = tmp["Indivs"];  // everyone in Ind's current sibgroup (including himself)
     int n = current_sibs.length();  // how many individuals in the full sibgroup that Ind belongs to
     int New_fs;  // for storing the index of the new sibship and individual will be put into
     int New_fsp; // for storing the column of the LMMFS matrix that a new sibship will use.  
+    IntegerVector New_fs_vec;
+    IntegerVector New_fsp_vec;
     // Get the sibships that we would consider adding this individual into:
     // ASG = Acceptable Sibling Groups
     IntegerVector AFS = possible_sibgroups(IFS, AFSL[Ind]);  // note that this will not include the individual's current sibling group if he is the only one in it.
@@ -561,8 +579,8 @@ ret["AFS"] = clone(AFS);
     // divide out his likelihood contribution to the 
     // the LMMFS and recompute PMMFS and KidProngs for his current sibship
     LMMFS( _, fsp) = LMMFS( _, fsp) / LMMI( _, Ind);
-    update_marriage_posteriors_in_place(FSL, LMMFS, PMMFS, UPG, 9, fs);
-    update_marriage_node_kid_prongs_in_place(FSL, PMMFS, KidProngs, 9, 3, TP, fs);
+ret["MP_Update_Idx1"]  =  update_marriage_posteriors_in_place(LMMFS, PMMFS, UPG, 9, fsp_vec);
+    update_marriage_node_kid_prongs_in_place(FSL, PMMFS, KidProngs, 9, 3, TP, fs_vec);
   
  ret["LMMFS_orig"] =  LMMFS_orig_col;
  ret["LMMFS_test"] =  LMMFS( _, fsp);
@@ -603,12 +621,16 @@ ret["solo_lik"] = solo_lik;
         PMMFS( _, fsp) = PMMFS_orig_col;
         KidProngs( _, fsp) = KidProngs_orig_col;
         New_fs = fs;
+        New_fs_vec = IntegerVector::create(New_fs);
         New_fsp = fsp;
+        New_fsp_vec = IntegerVector::create(New_fsp);
       }
       else {
         New_fs = Pile.back();  // If he was not a singleton before, we have to grab a new slot for him from the Pile
+        New_fs_vec = IntegerVector::create(New_fs);
         Pile.pop_back();
         New_fsp = MatPile.back();
+        New_fsp_vec = IntegerVector::create(New_fsp);
         MatPile.pop_back();
         
         // take him out of the old one
@@ -622,14 +644,14 @@ ret["solo_lik"] = solo_lik;
         }
         tmp["Indivs"] = tmp3;
         
-        // then put him into the FSL
+        // then put him into the FSL that we just pulled off the Pile
         tmp = FSL[New_fs];
         tmp["Indivs"] = NumericVector::create(Ind);
         tmp["LMMI_Idx"] = New_fsp;
         // Then recalculate the probs and things
-        LMMFS( _, fsp) = LMMI( _, Ind);
-        update_marriage_posteriors_in_place(FSL, LMMFS, PMMFS, UPG, 9, New_fs);
-        update_marriage_node_kid_prongs_in_place(FSL, PMMFS, KidProngs, 9, 3, TP, New_fs);
+        LMMFS( _, New_fsp) = LMMI( _, Ind);
+        update_marriage_posteriors_in_place(LMMFS, PMMFS, UPG, 9, New_fsp_vec);
+        update_marriage_node_kid_prongs_in_place(FSL, PMMFS, KidProngs, 9, 3, TP, New_fs_vec);
         
         // And don't forget to update his IFS entry:
         IFS[Ind] = New_fs;
@@ -688,8 +710,8 @@ ret["solo_lik"] = solo_lik;
         // then update the probs
         New_fsp = as<int>(tmp["LMMI_Idx"]);
         LMMFS( _, New_fsp) = LMMFS( _, New_fsp) * LMMI( _, Ind);
-        update_marriage_posteriors_in_place(FSL, LMMFS, PMMFS, UPG, 9, New_fs);
-        update_marriage_node_kid_prongs_in_place(FSL, PMMFS, KidProngs, 9, 3, TP, New_fs);
+        update_marriage_posteriors_in_place(LMMFS, PMMFS, UPG, 9, New_fsp_vec);
+        update_marriage_node_kid_prongs_in_place(FSL, PMMFS, KidProngs, 9, 3, TP, New_fs_vec);
         
         // And don't forget to update his IFS entry:
         IFS[Ind] = New_fs;

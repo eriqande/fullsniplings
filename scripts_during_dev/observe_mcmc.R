@@ -37,10 +37,16 @@ summarize_results <- function(x) {
 # x is the list returned by gibbs_update
 # sgl is the sg.list
 comp_liks_to_num_true_sibs <- function(x, sgl) {
-  df <- data.frame(AFS = x$AFS, FCLs = x$FCLs)  # ultimately we will return this thing
+  
+  # here are the LMMI_Idx's of all those full sibling groups too
+  lmmi_idx <- sapply(x$FSL_start[x$AFS+1], function(y) y$LMMI_Idx)
+  
+  df <- data.frame(AFS = x$AFS, LMMI_Idx = lmmi_idx,  FCLs = x$FCLs)  # ultimately we will return this thing
   
   # these are the individuals in these full-sibling groups
   fsl <- lapply(x$FSL_start[df$AFS+1], function(y) y$Indivs)
+  
+  
   
   df$NumSibs <- sapply(fsl, function(z) length(intersect(z, sgl[[x$Ind+1]])))
   
@@ -49,7 +55,22 @@ comp_liks_to_num_true_sibs <- function(x, sgl) {
   df[order(df$FCLs, decreasing = TRUE), ]
   
 }
- 
+
+
+# this function tables the sibship sizes
+table_sibsizes <- function(S) {
+  tab <- table(sapply(S, function(x) length(x$Indivs)))
+  tot <- sum(as.numeric(names(tab)) * tab)
+  list(Table=tab, Total=tot)
+}
+
+# this function orders the FSL by size and orders the indivs within each FSL for easy viewing
+ordered_fsl <- function(S) {
+  inds <- lapply(S, function(x) sort(x$Indivs))
+  ord <- order(sapply(inds, length), decreasing=T)
+  inds[ord]
+}
+
 
 # also, before starting, it will be nice to make a list for every individual with the base-0 subscripts of the other
 # individuals in his full sibling group:
@@ -57,14 +78,18 @@ ped <- fs_dev_test_data$chinook_full_sibs_pedigree
 ordered.kids <- rownames(fs_dev_test_data$chinook_full_sibs_genos)
 ped$kididx <- as.integer(factor(ped$Kid, levels = ordered.kids)) - 1
 kid.split <- split(ped$kididx, paste(ped$Pa, "---", ped$Ma, sep=""))
+
+# here we get a list of all the sibling groups
+sibgroups <- unname(kid.split[order(sapply(kid.split, length), decreasing=T)])
+
+# now get a list of the siblings of an individual
 sg.list <- vector("list", length = nrow(ped))
 for(L in kid.split) {
   for(ind in L) {
     sg.list[[ind+1]] <- setdiff(L, ind)
   }
 }
-
-# cool, at this point, if Ind is the base-0 index of an individual then
+# If Ind is the base-0 index of an individual then
 # sg.list[[Ind+1]] is a vector of the base-0 indices of all of its full siblings
 
 
@@ -90,12 +115,33 @@ afs_check[ (afs_check[,1] - afs_check[,2]) != 0, ]  # Far out.  We aren't missin
 
 # here is the basic way we run this:
 set.seed(5)
-i <- 955
+i <- 941
 grab <- do.call(what = gibbs_update_one_indiv_in_place, args = (c(cc, Ind=i)))
 cc$Pile <- grab$Pile  # currently these have to be copied back
 cc$MatPile <- grab$MatPile
 
+
 summarize_results(grab)
 grab$solo_lik
 head(comp_liks_to_num_true_sibs(grab, sg.list), n=20)
+
+
+
+
+
+# here we can run it multiple times on a specific group of individuals:
+set.seed(5)
+#for(j in 1:40) {for(i in sibgroups[[1]]) {
+for(j in 1:30) {
+  for(i in 0:(length(cc$IFS)-1)) {
+    grab <- do.call(what = gibbs_update_one_indiv_in_place, args = (c(cc, Ind=i)))
+    cc$Pile <- grab$Pile  # currently these have to be copied back
+    cc$MatPile <- grab$MatPile
+  }
+  print(table_sibsizes(S = cc$FSL)$Table)
+}
+
+summarize_results(grab)
+grab$solo_lik
+comp_liks_to_num_true_sibs(grab, sg.list)
 
