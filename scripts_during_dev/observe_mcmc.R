@@ -109,7 +109,7 @@ for(L in kid.split) {
 
 
 # initialize the chain to everyone in their own sibgroup.
-#chinook_chain <- full_sib_mcmc_initialize(fs_dev_test_data$chinook_full_sibs_genos, mu = 0.005)
+chinook_chain <- full_sib_mcmc_initialize(fs_dev_test_data$chinook_full_sibs_genos, mu = 0.005)
 #save(chinook_chain, file="chinook_chain.rda")
 load("chinook_chain.rda")  # i created the rda with the above two and then just do this to save time
 
@@ -144,11 +144,11 @@ head(comp_liks_to_num_true_sibs(grab, sg.list), n=20)
 
 
 # here we can run it multiple times on a specific group of individuals:
-set.seed(5)
+set.seed(123)
 #for(j in 1:40) {for(i in sibgroups[[1]]) {
 visited_sibgroups <- vector(mode = "integer")
-burn_in <- 50
-num_sweeps <- 100
+burn_in <- 10
+num_sweeps <- 20
 for(j in 1:(burn_in + num_sweeps)) {
   for(i in 0:(length(cc$IFS)-1)) {
     grab <- do.call(what = gibbs_update_one_indiv_in_place, args = (c(cc, Ind=i)))
@@ -173,7 +173,7 @@ names(vis_sib_lengths) <- names(visited_sibgroups)
 visited_sibgroups[true_sibgroups_as_strings]
 
 # here we see how many of our 100% posterior sibships were correct
-names(visited_sibgroups)[visited_sibgroups==100] %in% true_sibgroups_as_strings
+names(visited_sibgroups)[visited_sibgroups==500] %in% true_sibgroups_as_strings
 
 # so, what would be really nice is a function that summarizes this and gives us the sizes
 # of the correct and the sizes of the incorrect sibships.  Hmmm...we should be able
@@ -187,7 +187,7 @@ run_results <- run_results[order(run_results$Posterior, run_results$SibSize, dec
 
 # now get the cumulative number of individuals placed into the correct sibships (and the wrong one)
 run_results$CusumCorrect <- cumsum(run_results$SibSize * run_results$Correct)
-run_results$CusumInCorrect <- cumsum(run_results$SibSize * run_results$Correct==FALSE)
+run_results$CusumInCorrect <- cumsum(run_results$SibSize * (run_results$Correct==FALSE))
 
 # Note! I really need to to something different for the above.  Maybe a greedy approach where I take every sibship
 # as I scan down the list, and store which individuals I have seen, and then don't accept any sibgroups containing
@@ -198,3 +198,23 @@ run_results$CusumInCorrect <- cumsum(run_results$SibSize * run_results$Correct==
 # It is looking good though!
 
 
+
+# check this out, let's make an image of the sibships
+# turn list of full sibling groups into a matrix (lower diagonal of one)
+fsl2mat <- function(L) {
+  n <- length(unlist(L))
+  m <- matrix(NA, nrow=n, ncol=n)
+  singles <- unlist(L[sapply(L, length)==1])
+  two_or_more <- sapply(L, length) > 1 
+  pairs <- t(do.call(cbind, lapply(L[two_or_more], function(x) combn(sort(x), m=2)) ))
+  diag(m) <- 1
+  m[cbind(singles, singles)] <- 1
+  m[pairs] <- 1
+  m
+}
+
+L <- lapply(cc$FSL, function(x) x$Indivs)
+mat <- fsl2mat(L)
+image(mat)
+
+# wow! with a data set on this scale you really can't visualize that worth crap!

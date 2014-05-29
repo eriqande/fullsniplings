@@ -3,12 +3,17 @@
 \alias{full_sib_mcmc_initialize}
 \title{initilize all the variables to do a full sibling analysis given genos and mu}
 \usage{
-full_sib_mcmc_initialize(genos, mu)
+full_sib_mcmc_initialize(genos, mu, pair_prob_cutoff = 0.001)
 }
 \arguments{
 \item{genos}{The data frame of SNP genotypes}
 
 \item{mu}{Genotyping error rates per locus (recycles as necessary)}
+
+\item{pair_prob_cutoff}{the fraction of simulated full sib pairs that should have a
+log-likelihood ratio for the sibling relationship less than the cutoff that will be used.
+(The value pair_prob_cutoff is used to determine the which pairs have a high enough
+log-likelihood ratio to be considered as possible full siblings.)}
 }
 \value{
 This returns a list with components that are documented as the parameters that

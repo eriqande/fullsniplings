@@ -16,51 +16,87 @@ Note that to get this to really be a vignette, I must insert this at the top:
 ```
 <!--
 %\VignetteEngine{knitr::knitr}
-%\VignetteIndexEntry{Building up an MCMC function}
+%\VignetteIndexEntry{Running on chinook data and comparing to Colony}
 -->
 ```
 
 ```{r}
 library(fullsniplings)
-library(microbenchmark)
 ```
 
 ## Intro
-Having come back to this project after two weeks, I don't quite remember where I was on the bleeding edge of its development.  However, I also figured out a very different way to cast most of what I am trying to do here in terms of factor graphs.  So, this line of development is pretty dead---it will all be supplanted.  Nonetheless, I want to use it to analyze one simple case: nothing but full siblings (no half siblings, even) to see how much a speed advantage this might carry over Colony.  And I want to get this done to present at the coastwide meeting in two weeks.  yikes.
-
-So, I am going to use the chinook full sibling data:
+So, are going to use the chinook full sibling data:
 ```{r}
 dim(fs_dev_test_data$chinook_full_sibs_genos)
 ```
 That is `r nrow(fs_dev_test_data$chinook_full_sibs_genos)` at `r ncol(fs_dev_test_data$chinook_full_sibs_genos)/2` SNPs.
 
-## Moving forward
-So, I now think I have gotten my head back around where I need to be.  I have pretty much finished up a function that prepares all th variables for the MCMC.  It is in the file `mcmc1.R` and I can run it like this:
+## Running the chain
+We can run the chain like this:
 ```{r}
-chinook_chain <- full_sib_mcmc_initialize(fs_dev_test_data$chinook_full_sibs_genos, mu = 0.005)
+#chinook_results <- run_mcmc(fs_dev_test_data$chinook_full_sibs_genos, burn_in = 50, num_sweeps = 200)
+#save(chinook_results, file="chinook_chain_results.rda")
+
+# i have commented that out so it doesn't take took much time, and I can get it back quickly
+# like this:
+load("/Users/eriq/Documents/git-repos/fullsniplings/chinook_chain_results.rda") # not portable file name
+# but render() in rmarkdown seems to make the directory change...
 ```
 
-That has most everything needed to run the MCMC, but there is at least one thing left to be done:
-**I have to compute for each individual the individuals that are acceptable, possible full siblings.**  In order to that I will write a function that returns a list with one component for every individual. Yay! I've got that done now with the function `high_logl_pairs` in `fullsniplings.cpp`.  There is also an R version of the function: `find_high_logl_sib_pairs` that takes about 200 times longer.  Holy Crap!  Anyway, it returns a list of vectors, one for each individual.  They are base 0 subscripted. 
-
-Once that is done, then it is time to modify, update, and improve `gibbs_update_one_indiv_in_place` which is found in `fullsniplings.cpp`.  Here are some things that need to be done.
-
-- Make `gibbs_update_one_indiv_in_place` return some information about where the individual started and where he finished up (i.e. whether his sibling group was updated)
-- Make another Cpp function that can call `gibbs_update_one_indiv_in_place` multiple times.  Give this new function a vector of indices of individuals (which may appear multiple times) and have it cycle through that whole vector before returning a result.
-- Figure out how to compute the (pseudo-Gibbs) prior for each possible sibship. I particularly have to think about how to compute the prior on its being a totally new sibgroup (of just itself) and how that interacts with the "acceptable full siblings".
-- Actually update the sibhip of the individual.
-- Update it so that it will use only acceptable, possible, full siblings.
-
-
-## Developing the gibbs update function
-Here is a simple thing to do to call the function:
+## Getting the truth
+Here I pull out some code from `observe_mcmc.R` to get the hashable names of the
+different true sibling groups as a character vector called `true_sibgroups_as_strings`.
 ```{r}
-cc <- chinook_chain
-for(i in 0:1156) {
-grab <- gibbs_update_one_indiv_in_place(FSL = cc$FSL, IFS = cc$IFS, LMMI = cc$LMMI, LMMFS = cc$LMMFS, PMMFS = cc$PMMFS, KidProngs = cc$KidProngs, Pile = cc$Pile, MatPile = cc$MatPile, AFSL = cc$AFSL, Gfreqs = cc$Gfreqs, UPG = cc$UPG, TP = cc$TP, IndLiks = cc$IndLiks, Ind = i)
-cc$Pile = grab[[8]]
-cc$MatPile = grab[[9]]
+ped <- fs_dev_test_data$chinook_full_sibs_pedigree
+ordered.kids <- rownames(fs_dev_test_data$chinook_full_sibs_genos)
+ped$kididx <- as.integer(factor(ped$Kid, levels = ordered.kids)) - 1
+kid.split <- split(ped$kididx, paste(ped$Pa, "---", ped$Ma, sep=""))
+
+# here we get a list of all the sibling groups
+sibgroups <- unname(kid.split[order(sapply(kid.split, length), decreasing=T)])
+
+# and here we can store them as strings:
+true_sibgroups_as_strings <- sapply(sibgroups, function(x) paste(x, collapse="-"))
+```
+
+And, I also get a list of all the siblings that belong to each individual, in the truth:
+```{r}
+# now get a list of the siblings of an individual
+sg.list <- vector("list", length = nrow(ped))
+for(L in kid.split) {
+  for(ind in L) {
+    sg.list[[ind+1]] <- setdiff(L, ind)
+  }
 }
-table(sapply(cc$FSL, function(x) length(x$Indiv)))
 ```
+Now, if `Ind` is the base-0 index of an individual then
+`sg.list[[Ind+1]]` is a vector of the base-0 indices of all of its full siblings
+
+
+## Assessing results compared to the truth
+Put the greedy partition results into a table with a short name, then add some columns to it:
+```{r}
+crtab <- chinook_results$Partition
+crtab$Correct <- rownames(crtab) %in% true_sibgroups_as_strings
+crtab$CumulCorrectSibs <- cumsum(crtab$NumSibs * crtab$Correct)
+crtab$CumulSibsInIncorrectSibships <- cumsum(crtab$NumSibs * (1-crtab$Correct))
+```
+Note that the last line gives us a really punishing measure: if a sibship is incorrect, even if it is only
+off by one individual, everyone in it is counted as wrong.  
+
+There is one sibship with posterior of 1 and it is size 8, but it is wrong.  Compare these:
+```{r}
+# here is the row that has them
+crtab["94-105-231-405-529-532-551-847", ]
+
+# and here is what the sibship probably should look like:
+c(94, sg.list[[95]])
+```
+I think we have seen these guys before and they are full cousins or something.
+
+
+## Getting Colony's results
+This will be a little weird.  I will use a previous Colony run, since I don't have time to re-run it.  That
+previous run included 50 extra individuals (some half-siblings) which I will discard from the results which 
+will give us something that is almost comparable.
 

@@ -6,10 +6,14 @@
 #' the MCMC sweep function.
 #' @param genos  The data frame of SNP genotypes
 #' @param mu  Genotyping error rates per locus (recycles as necessary)
+#' @param pair_prob_cutoff the fraction of simulated full sib pairs that should have a 
+#' log-likelihood ratio for the sibling relationship less than the cutoff that will be used.
+#' (The value pair_prob_cutoff is used to determine the which pairs have a high enough
+#' log-likelihood ratio to be considered as possible full siblings.)
 #' @return This returns a list with components that are documented as the parameters that 
 #' get passed to \link{\code{gibbs_update_one_indiv_in_place}}
 #' @export
-full_sib_mcmc_initialize <- function(genos, mu) {
+full_sib_mcmc_initialize <- function(genos, mu, pair_prob_cutoff = 0.001) {
   
   message("Starting mcmc variable initialization at ", date())
   
@@ -57,7 +61,7 @@ full_sib_mcmc_initialize <- function(genos, mu) {
   # now simulate to see what the distribution of logls is
   message("Staring LogL simulation at ", date(), "    This will take a few seconds")
   logls <- simulate_sib_pair_logls(ret$Gfreqs, 0.005, 100000)
-  q1000 <- quantile(logls$LogL_ratio[logls$Relat=="Full_Sib_Pairs"], probs=.001)
+  q1000 <- quantile(logls$LogL_ratio[logls$Relat=="Full_Sib_Pairs"], probs = pair_prob_cutoff)
   message("Done with LogL simulation at ", date())
   message("99.9% of true full sibs simulated to have logL > than ", format(q1000, digits=6))
 
@@ -142,8 +146,7 @@ make_PMMFS_from_FSL_and_LMMFS <- function(FSL, LMMFS, af) {
 
   FSP <- sapply(FSL, function(x) x$LMMI_Idx)
   
-  update_marriage_posteriors_in_place(
-        FSL, 
+  update_marriage_posteriors_in_place( 
         LMMFS, 
         ret, 
         UPG, 
@@ -175,4 +178,38 @@ make_KidProngs_from_FSL_and_PMMFS <- function(FSL, PMMFS) {
   
   # and return it.  I really should make it a geno_qty_array, but I am tired of that at the moment
   ret
+}
+
+
+
+#' this function tables the sibship sizes
+#' 
+#' This is used to report states periodically while running MCMC
+#' @param S the full sibling list.
+table_sibsizes <- function(S) {
+  tab <- table(sapply(S, function(x) length(x$Indivs)))
+  tot <- sum(as.numeric(names(tab)) * tab)
+  list(Table=tab, Total=tot)
+}
+
+#' Orders the Full Sibling List (FSL) by size and orders the indivs within each FSL for easy viewing
+#' 
+#' This is used internally
+#' @param S The full sibling list
+ordered_fsl <- function(S) {
+  inds <- lapply(S, function(x) sort(x$Indivs))
+  ord <- order(sapply(inds, length), decreasing=T)
+  inds[ord]
+}
+
+
+#' Returns a vector of strings naming the current sibships
+#' 
+#' Uses the full sibling list to make names of the sibships like 
+#' 10-34-67-98, which can be used to hash them
+#' @param S the full sibling list
+hashable_sibships <- function(S) {
+  osibs <- ordered_fsl(S)   # ordered sibgroups
+  osibs <- osibs[sapply(osibs, length)>0]  # drop the empty ones
+  sapply(osibs, function(x) paste(x, collapse="-"))
 }
