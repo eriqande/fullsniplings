@@ -94,9 +94,124 @@ c(94, sg.list[[95]])
 ```
 I think we have seen these guys before and they are full cousins or something.
 
+### Testing whether there are any non-sibs, etc.
+We will add some more columns to the table
+```{r}
+# this is a list of sibgroups by their base-0 index
+S <- lapply(strsplit(rownames(chinook_results$Partition), "-"), as.numeric)
+OmAndCom <- ave_err_commission_and_ommission(S, sg.list)
+crtab$AveNumNonSibs <- OmAndCom$AveNumNonSibs
+crtab$AveNumSibsMissing <- OmAndCom$AveNumSibsMissing
+```
+
+
 
 ## Getting Colony's results
 This will be a little weird.  I will use a previous Colony run, since I don't have time to re-run it.  That
 previous run included 50 extra individuals (some half-siblings) which I will discard from the results which 
 will give us something that is almost comparable.
 
+### Running Time
+First I note that I can look at the standard output:
+```
+2014-05-29 11:53 /PairX1/--%  pwd
+/Users/eriq/Documents/xp_dev_svn_checkouts/slg_pipe/arena/FRH_ColonyRun/ColonyArea/Collections/AA/PairX1
+2014-05-29 11:55 /PairX1/--% gzcat StdoutColony.txt.gz 
+
+# and find in there the running time:
+TotalRunningTime(Min)=1.458552E+02
+```
+So, running time is 146 minutes, which I can call about 2.5 hours, and that, remember is for the *pairwise*
+version of Colony.
+
+
+### Colony-inferred sibships
+
+#### First get the colony inferred sibships and put their long names on them
+```{r}
+# read in the colony sibships
+colony_sib_file <- system.file("data_files/colony/AA_PairX1.BestFSFamily", package="fullsniplings", mustWork = T)
+csibs <- SlurpSibships(file=colony_sib_file, skip=1)
+
+# now, put the names back on them:
+load(system.file("data_files/colony/FRH-sibs-for-pipeline.Rda", package="fullsniplings", mustWork = T))
+names(fish.names) <- rownames(data)
+idxs <- 1:nrow(data)
+names(idxs) <- rownames(data)
+csibs <- NamizeSibs(csibs, fish.names, idxs)
+```
+
+
+#### Filter it down to just the full sibs I retained for fullsniplings' analysis
+At this juncture the names of these fish in the colony output are like this: `T065899_F_10-6-2010--T030068_?_9-28-2007--T030092_?_9-28-2007`.
+So, we can use what is in `ped` to go immediately to the base-0 index of each fish, just like we have for the 
+full-sniplings output:
+```{r}
+bz_idx <- ped$kididx
+# make names for this base-0 index vector by catenating Kid-Pa-Ma
+names(bz_idx) <- paste(ped$Kid, ped$Pa, ped$Ma, sep="--")
+
+# and then make a sibship list of just those indices:
+colony_sibs <- lapply(csibs$sibs.names, function(x) {z <- unname(bz_idx[x]); z[!is.na(z)]})
+# drop the empty ones
+empties <- sapply(colony_sibs, length)>0
+colony_sibs <- colony_sibs[empties] 
+colony_probs <- as.numeric(csibs$probs[empties])
+```
+
+And now we want to make a data frame of those results that is similar to `crtab`
+```{r}
+colony_tab <- data.frame(Posterior = colony_probs, NumSibs = sapply(colony_sibs, length))
+rownames(colony_tab) <- sapply(colony_sibs, function(x) paste(sort(x), collapse="-"))
+# now put them in order by posterior and then size
+ord <- order(colony_tab$Posterior, colony_tab$NumSibs, decreasing = T)
+colony_tab <- colony_tab[ord, ]
+
+colony_tab$Correct <- rownames(colony_tab) %in% true_sibgroups_as_strings
+colony_tab$CumulCorrectSibs <- cumsum(colony_tab$NumSibs * colony_tab$Correct)
+colony_tab$CumulSibsInIncorrectSibships <- cumsum(colony_tab$NumSibs * (1-colony_tab$Correct))
+
+# then get average errors of commission and omission
+OmAndCom <- ave_err_commission_and_ommission(colony_sibs, sg.list)
+colony_tab$AveNumNonSibs <- OmAndCom$AveNumNonSibs
+colony_tab$AveNumSibsMissing <- OmAndCom$AveNumSibsMissing
+```
+
+
+## Make some plots
+Here is one for my method
+```{r}
+sib_result_plot(crtab$NumSibs, crtab$Visits/200, false_positive = crtab$AveNumNonSibs>0.001, lscale = .03, correct = crtab$Correct)
+```
+and here is one for colony:
+```{r}
+sib_result_plot(colony_tab$NumSibs, colony_tab$Posterior, false_positive = colony_tab$AveNumNonSibs>0.001, lscale = .03, correct = colony_tab$Correct)
+
+sib_result_plot(crtab$NumSibs, (crtab$Visits/200) - .4, false_positive = crtab$AveNumNonSibs>0.001, lscale = .03, correct = crtab$Correct, add=T)
+```
+
+
+How about some plots of cumulative number of individuals put in the right sibship
+and number put in the wrong sibship:
+```{r}
+plot(colony_tab$CumulCorrectSibs, colony_tab$CumulSibsInIncorrectSibships, 
+     xlim = c(0, max(crtab$CumulCorrectSibs)))
+lines(crtab$CumulCorrectSibs, crtab$CumulSibsInIncorrectSibships)
+```
+
+We can also think about the cumulative number if individuals that have been placed
+in sibships that have at least one non sib, as a function of the total number of 
+individuals placed correctly into their sibships.
+```{r}
+plot(crtab$CumulCorrectSibs, cumsum(crtab$NumSibs * (crtab$AveNumNonSibs > 0.01)),
+     type = "l", lwd=2, col = "orange")
+lines(colony_tab$CumulCorrectSibs, cumsum(colony_tab$NumSibs * (colony_tab$AveNumNonSibs > 0.01)))
+```
+
+And also cumulative number of individuals placed in sibgroups that are missing at 
+least one of their true sibs:
+```{r}
+plot(crtab$CumulCorrectSibs, cumsum(crtab$NumSibs * (crtab$AveNumSibsMissing > 0.01)),
+     type = "l", lwd=2, col = "orange", ylim=c(0,sum(colony_tab$NumSibs * (colony_tab$AveNumSibsMissing > 0.01))))
+lines(colony_tab$CumulCorrectSibs, cumsum(colony_tab$NumSibs * (colony_tab$AveNumSibsMissing > 0.01)))
+```
