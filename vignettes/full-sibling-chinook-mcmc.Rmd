@@ -181,13 +181,15 @@ colony_tab$AveNumSibsMissing <- OmAndCom$AveNumSibsMissing
 ## Make some plots
 Here is one for my method
 ```{r}
+#quartz(width=10, height=6)
 sib_result_plot(crtab$NumSibs, crtab$Visits/200, false_positive = crtab$AveNumNonSibs>0.001, lscale = .03, correct = crtab$Correct)
+dev.copy2pdf(file="fullsniplings-posterior-plot.pdf")
 ```
 and here is one for colony:
 ```{r}
 sib_result_plot(colony_tab$NumSibs, colony_tab$Posterior, false_positive = colony_tab$AveNumNonSibs>0.001, lscale = .03, correct = colony_tab$Correct)
-
-sib_result_plot(crtab$NumSibs, (crtab$Visits/200) - .4, false_positive = crtab$AveNumNonSibs>0.001, lscale = .03, correct = crtab$Correct, add=T)
+dev.copy2pdf(file="colony-posterior-plot.pdf")
+#sib_result_plot(crtab$NumSibs, (crtab$Visits/200) - .4, false_positive = crtab$AveNumNonSibs>0.001, lscale = .03, correct = crtab$Correct, add=T)
 ```
 
 
@@ -195,17 +197,41 @@ How about some plots of cumulative number of individuals put in the right sibshi
 and number put in the wrong sibship:
 ```{r}
 plot(colony_tab$CumulCorrectSibs, colony_tab$CumulSibsInIncorrectSibships, 
-     xlim = c(0, max(crtab$CumulCorrectSibs)))
-lines(crtab$CumulCorrectSibs, crtab$CumulSibsInIncorrectSibships)
+     xlim = c(0, max(crtab$CumulCorrectSibs)), type = "l", lwd = 2,
+     ylab = "Number of Fish Placed in Incorrect or Incomplete Sibling Groups",
+     xlab = "Number of Fish Placed in Correct Sibing Groups")
+lines(crtab$CumulCorrectSibs, crtab$CumulSibsInIncorrectSibships, lwd = "2", col = "orange")
+legend("topleft", 
+         legend = c("COLONY", "FULLSNIPLINGS"), 
+         col = c("black", "orange"), lty = "solid", lwd = 2
+         )
+text(x = 0, y = 175, "Totals:" )
+text(x = 0, y = 150, paste("FULLSNIPLINGS:    ", crtab[nrow(crtab), "CumulCorrectSibs"], "correct   and   ", crtab[nrow(crtab), "CumulSibsInIncorrectSibships"], "incorrect."), pos = 4  )
+text(x = 0, y = 125, paste("COLONY:       ", colony_tab[nrow(colony_tab), "CumulCorrectSibs"], "correct   and   ", colony_tab[nrow(colony_tab), "CumulSibsInIncorrectSibships"], "incorrect."), pos = 4  )
+dev.copy2pdf(file = "cumul-correct-vs-incorrect.pdf")
 ```
 
 We can also think about the cumulative number if individuals that have been placed
 in sibships that have at least one non sib, as a function of the total number of 
 individuals placed correctly into their sibships.
 ```{r}
-plot(crtab$CumulCorrectSibs, cumsum(crtab$NumSibs * (crtab$AveNumNonSibs > 0.01)),
-     type = "l", lwd=2, col = "orange")
-lines(colony_tab$CumulCorrectSibs, cumsum(colony_tab$NumSibs * (colony_tab$AveNumNonSibs > 0.01)))
+crcum <- cumsum(crtab$NumSibs * (crtab$AveNumNonSibs > 0.01))
+colcum <- cumsum(colony_tab$NumSibs * (colony_tab$AveNumNonSibs > 0.01))
+plot(crtab$CumulCorrectSibs, crcum,
+     type = "l", lwd=2, col = "orange",
+     ylab = "Number of Fish Grouped With Non-Siblings",
+     xlab = "Number of Fish Placed in Correct Sibing Groups")
+lines(colony_tab$CumulCorrectSibs, colcum, lwd = 2)
+
+legend("topleft", 
+         legend = c("COLONY", "FULLSNIPLINGS"), 
+         col = c("black", "orange"), lty = "solid", lwd = 2
+         )
+
+text(x = 0, y = 48, "   Totals:" )
+text(x = 0, y = 44, paste("FULLSNIPLINGS:    ", crtab[nrow(crtab), "CumulCorrectSibs"], "correct   and   ", max(crcum), "grouped with a non-sib"), pos = 4  )
+text(x = 0, y = 38, paste("COLONY:       ", colony_tab[nrow(colony_tab), "CumulCorrectSibs"], "correct   and   ", max(colcum), "grouped with a non-sib"), pos = 4  )
+dev.copy2pdf(file = "cumul-correct-vs-grouped-with-non-sib.pdf")
 ```
 
 And also cumulative number of individuals placed in sibgroups that are missing at 

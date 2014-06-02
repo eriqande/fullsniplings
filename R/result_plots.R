@@ -20,10 +20,18 @@ sib_result_plot <- function(SS, post, false_positive, lscale = .01, correct, add
   tops <- post + lscale * SS / 2
   
   # set up plot area
-  if(add == FALSE) plot(c(1,L), c(0,1.2), type="n")
+  if(add == FALSE) plot(c(1,L), c(0,1.2), type="n", 
+                        ylab = "Estimated Posterior Probability of Inferred Sibling Group", 
+                        xlab = "Index of Inferred Sibling Group (Ordered by Posterior, Size)")
   
   # plot the segments 
   segments(x0 = 1:L, y0 = bots, x1 = 1:L, y1 = tops, col=c("gray", "blue", "red")[(!correct) + 1 + false_positive])
   lines(1:L, post)
+  
+  # put the legend in the lower right
+  legend("bottomleft", 
+         legend = c("Correctly-inferred sibling group", "Incomplete sibling group", "Grouping of non-siblings"), 
+         col = c("gray", "blue", "red"), lty = "solid"
+         )
 }
 
