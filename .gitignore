@@ -6,6 +6,6 @@
 *.html
 *.o
 src/RcppExports.cpp
-R/RcppExports.R
+#R/RcppExports.R
 src/*.so
 .RData

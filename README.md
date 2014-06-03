@@ -1,12 +1,21 @@
 # fullsniplings
 
-A package to infer full-sibling relationships from genetic data.
+An R package to infer full-sibling relationships from genetic data.
 Geared toward datasets with many individuals and about 100 SNPs which are
 treated as if they are unlinked. (While that is clearly false, it might be
-reasonable).  The name derives from the fact that the idea for the approach
-taken here came to me when I was working on sibling inference issues.  It
-became clear that being able to compute the posterior predictive
-distribution of genotypes conditional on observed sibling groups would be a
-powerful way forward in the sibling inference problem. I will eventually generalize
+reasonable).  The method is based on computing the posterior predictive
+distribution of genotypes conditional on currently-inferred sibling groups. 
+I will eventually generalize
 that to more general pedigree inference, but for now just want to implement
 the easy full-sibling case as a prototypical exercise.
+
+## Installing / Building
+On a Mac you need to have the developer command line tools, and on a PC you will 
+want the RTools to build this package.  You need to have the `Rcpp` package as
+well, and also the `devtools` package.  You can get both of those from CRAN.
+
+Here is what you would do:
+```{r}
+library(devtools)  # load this package for the install_github() function
+
+```
