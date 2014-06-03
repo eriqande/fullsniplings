@@ -1,0 +1,5 @@
+*.md
+*.pdf
+cache
+*_cache
+*_files
