@@ -32,15 +32,15 @@ dim(fs_dev_test_data$chinook_full_sibs_genos)
 That is `r nrow(fs_dev_test_data$chinook_full_sibs_genos)` at `r ncol(fs_dev_test_data$chinook_full_sibs_genos)/2` SNPs.
 
 ## Running the chain
-We can run the chain like this:
+We can run the chain like this. Note that I have commented out the actual running of the chain.
 ```{r}
 #chinook_results <- run_mcmc(fs_dev_test_data$chinook_full_sibs_genos, burn_in = 50, num_sweeps = 200)
 #save(chinook_results, file="chinook_chain_results.rda")
 
 # i have commented that out so it doesn't take took much time, and I can get it back quickly
 # like this:
-load("/Users/eriq/Documents/git-repos/fullsniplings/chinook_chain_results.rda") # not portable file name
-# but render() in rmarkdown seems to make the directory change...
+saved_results <- system.file("chinook_chain_results.rda", package="fullsniplings", mustWork = T)
+load(saved_results)
 ```
 
 ## Getting the truth
@@ -181,6 +181,7 @@ colony_tab$AveNumSibsMissing <- OmAndCom$AveNumSibsMissing
 ## Make some plots
 Here is one for my method
 ```{r}
+# uncomment the following line if you want to make pdfs on a mac.
 #quartz(width=10, height=6)
 sib_result_plot(crtab$NumSibs, crtab$Visits/200, false_positive = crtab$AveNumNonSibs>0.001, lscale = .03, correct = crtab$Correct)
 dev.copy2pdf(file="fullsniplings-posterior-plot.pdf")

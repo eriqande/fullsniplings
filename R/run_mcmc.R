@@ -38,7 +38,9 @@ run_mcmc <- function (genos, mu = 0.005, pair_prob_cutoff = 0.001, burn_in, num_
   GP <- greedy_partition(visited_sibgroups)
   Partition <- as.data.frame(t(sapply(GP$VSL, function(x) c(x$Visits, x$NumSibs))))
   names(Partition) <- c("Visits", "NumSibs")
-  list(Partition = Partition, GP_result = GP, VS = sort_visited_sibgroups(visited_sibgroups))
+  SibGroupsByName <- lapply(strsplit(rownames(Partition), "-"), function(x) rownames(genos)[as.numeric(x) + 1])
+  list(Partition = Partition, GP_result = GP, VS = sort_visited_sibgroups(visited_sibgroups), 
+       SibGroupsByName = SibGroupsByName)
 }
 
 
