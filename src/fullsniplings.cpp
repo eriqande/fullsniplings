@@ -232,7 +232,6 @@ void update_marriage_likelihoods_in_place(List S, NumericMatrix PK, NumericMatri
 //' @export
 // [[Rcpp::export]]
 int update_marriage_posteriors_in_place(NumericMatrix ML, NumericMatrix MP, NumericMatrix Pri, int NGS, IntegerVector bz_idx) {
-  int yl;
   IntegerVector y;
   int nL = ML.nrow() / NGS;  // this should be the number of loci
   int j,p;
@@ -303,7 +302,6 @@ int update_marriage_posteriors_in_place(NumericMatrix ML, NumericMatrix MP, Nume
 // [[Rcpp::export]]
 void update_marriage_node_kid_prongs_in_place(List S, NumericMatrix MP, NumericMatrix KP, 
                                          int NGS_P, int NGS_K, NumericVector TP, IntegerVector bz_idx) {
-  int yl;
   IntegerVector y;
   List tmp;
   int nL = KP.nrow() / NGS_K;  // this should be the number of loci
@@ -350,7 +348,6 @@ NumericVector kid_prongs_times_ind_likelihoods(List FSL, NumericVector IndGenoLi
   List tmp;
   int n = AFS.length();  // the number of sibgroups in AFS
   NumericVector ret(n);  
-  int fsp;
   double prod = 1.0;
   int j,k;
   int nL = IndGenoLik.length() / 3; 
