@@ -5,7 +5,7 @@
 *.Rbuildignore
 *.html
 *.o
-src/RcppExports.cpp
+#src/RcppExports.cpp
 #R/RcppExports.R
 src/*.so
 .RData
