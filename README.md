@@ -46,7 +46,7 @@ To do this, you will need V2 of the `rmarkdown` package.  You can get that  eith
 by using the latest preview version of Rstudio: http://www.rstudio.com/products/rstudio/download/preview/
 or by installing rmarkdown from github like this:
 ```r
-devtools::install_github(repo="rmarkdown", username="studio")
+devtools::install_github("eriqande/fullsniplings")
 ```
 Then, once you have done that you should be able to do 
 ```r
